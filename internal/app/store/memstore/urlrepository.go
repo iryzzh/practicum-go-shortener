@@ -21,13 +21,13 @@ func (r *URLRepository) Create(u *model.URL) error {
 		URLOrigin: u.URLOrigin,
 	}
 
-	r.store.urls[r.store.nextId] = url
-	r.store.nextId++
+	r.store.urls[r.store.nextID] = url
+	r.store.nextID++
 
 	return nil
 }
 
-func (r *URLRepository) FindById(id string) (model.URL, error) {
+func (r *URLRepository) FindByID(id string) (model.URL, error) {
 	for _, v := range r.store.urls {
 		if id == v.URLShort {
 			return v, nil
@@ -36,7 +36,7 @@ func (r *URLRepository) FindById(id string) (model.URL, error) {
 	return model.URL{}, fmt.Errorf("record not found")
 }
 
-func (r *URLRepository) GetById(id string) (string, error) {
+func (r *URLRepository) GetByID(id string) (string, error) {
 	for i, v := range r.store.urls {
 		if id == v.URLShort {
 			r.incrementStats(i, v)

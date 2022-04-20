@@ -13,7 +13,7 @@ func parseConfig() *shortener.Config {
 	flag.StringVar(&cfg.Network, "n", "tcp", "The network must be \"tcp\", \"tcp4\", \"tcp6\", \"unix\" or \"unixpacket\"")
 	flag.StringVar(&cfg.BindAddress, "a", "localhost", "Address to bind")
 	flag.StringVar(&cfg.BindPort, "p", "8080", "Port to bind")
-	flag.IntVar(&cfg.UrlLen, "l", 8, "Generated link length")
+	flag.IntVar(&cfg.URLLen, "l", 8, "Generated link length")
 
 	flag.Parse()
 

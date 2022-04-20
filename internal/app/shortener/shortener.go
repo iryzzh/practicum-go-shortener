@@ -22,7 +22,7 @@ type Config struct {
 	Network     string
 	BindAddress string
 	BindPort    string
-	UrlLen      int
+	URLLen      int
 }
 
 type Shortener struct {
@@ -130,7 +130,7 @@ func (s *Shortener) createURL(r *http.Request) (string, error) {
 
 	m := &model.URL{
 		URLOrigin: string(url),
-		URLShort:  utils.RandStringBytesMaskImprSrcUnsafe(s.cfg.UrlLen),
+		URLShort:  utils.RandStringBytesMaskImprSrcUnsafe(s.cfg.URLLen),
 	}
 
 	if err := s.store.URL().Create(m); err != nil {
@@ -147,11 +147,11 @@ func (s *Shortener) decodeURL(r *http.Request) (string, error) {
 	if id == "" {
 		return "", fmt.Errorf("must specify id")
 	}
-	if len(split) > 2 || len(id) != s.cfg.UrlLen {
+	if len(split) > 2 || len(id) != s.cfg.URLLen {
 		return "", fmt.Errorf("incorrect id length")
 	}
 
-	return s.store.URL().GetById(id)
+	return s.store.URL().GetByID(id)
 }
 
 func (s *Shortener) getListener() (net.Listener, error) {
