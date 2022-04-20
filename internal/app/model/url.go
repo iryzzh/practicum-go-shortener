@@ -14,8 +14,8 @@ type URL struct {
 }
 
 func (u *URL) Validate() error {
-	reHttp := regexp.MustCompile(`https?://`)
-	if !reHttp.MatchString(u.URLOrigin) {
+	reHTTP := regexp.MustCompile(`https?://`)
+	if !reHTTP.MatchString(u.URLOrigin) {
 		u.URLOrigin = "https://" + u.URLOrigin
 	}
 	t, err := url.Parse(u.URLOrigin)

@@ -10,7 +10,7 @@ type Store struct {
 	sync.Mutex
 
 	urls          map[int]model.URL
-	nextId        int
+	nextID        int
 	urlRepository *URLRepository
 }
 
@@ -18,7 +18,7 @@ func New() *Store {
 	return &Store{
 		//urls:   make(map[int]interface{}),
 		urls:   make(map[int]model.URL),
-		nextId: 0,
+		nextID: 0,
 	}
 }
 
