@@ -82,6 +82,8 @@ func TestHandler_Get(t *testing.T) {
 			defer ts.Close()
 
 			resp, _ := testRequest(t, ts, "GET", "/"+tt.params.id, nil)
+			defer resp.Body.Close() // CI go vet
+
 			assert.Equal(t, resp.StatusCode, tt.want.code)
 			assert.Equal(t, resp.Header.Get("Location"), tt.want.location)
 		})
@@ -145,8 +147,9 @@ func TestHandler_Post(t *testing.T) {
 
 			body := strings.NewReader(tt.params.body)
 			r, b := testRequest(t, ts, "POST", "/", body)
-			assert.Equal(t, r.StatusCode, tt.want.code)
+			defer r.Body.Close() // CI go vet
 
+			assert.Equal(t, r.StatusCode, tt.want.code)
 			assert.Condition(t, func() bool {
 				if r.StatusCode == http.StatusBadRequest {
 					return true
