@@ -9,15 +9,13 @@ import (
 type Store struct {
 	sync.Mutex
 
-	urls          map[int]model.URL
-	nextID        int
-	urlRepository *URLRepository
+	urls   map[int]*model.URL
+	nextID int
 }
 
 func New() *Store {
 	return &Store{
-		//urls:   make(map[int]interface{}),
-		urls:   make(map[int]model.URL),
+		urls:   make(map[int]*model.URL),
 		nextID: 0,
 	}
 }

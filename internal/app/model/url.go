@@ -7,6 +7,7 @@ import (
 )
 
 type URL struct {
+	ID        int    `json:"id"`
 	URLOrigin string `json:"url"`
 	URLShort  string `json:"url_short"`
 	Visited   bool   `json:"visited"`
