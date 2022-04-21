@@ -10,6 +10,10 @@ type URLRepository struct {
 }
 
 func (r *URLRepository) Create(u *model.URL) error {
+	if err := u.Validate(); err != nil {
+		return err
+	}
+
 	r.store.Lock()
 	defer r.store.Unlock()
 	if err := u.Validate(); err != nil {
@@ -33,7 +37,7 @@ func (r *URLRepository) FindByID(id string) (*model.URL, error) {
 	return &model.URL{}, fmt.Errorf("record not found")
 }
 
-func (r *URLRepository) incrementStats(i int) {
+func (r *URLRepository) IncrementStats(i int) {
 	r.store.Lock()
 	defer r.store.Unlock()
 	r.store.urls[i].Visited = true
