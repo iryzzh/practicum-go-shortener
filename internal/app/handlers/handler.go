@@ -78,13 +78,13 @@ func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	header := r.Header.Get("Content-Type")
-	switch {
-	case strings.EqualFold(header, "text/plain"), header == "":
-	default:
-		s.fail(w, nil)
-		return
-	}
+	//header := r.Header.Get("Content-Type")
+	//switch {
+	//case strings.EqualFold(header, "text/plain"), header == "":
+	//default:
+	//	s.fail(w, nil)
+	//	return
+	//}
 
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
