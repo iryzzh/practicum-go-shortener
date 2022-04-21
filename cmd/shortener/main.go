@@ -1,10 +1,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/shortener"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store/memstore"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"golang.org/x/sync/errgroup"
 )
 
 func parseConfig() *shortener.Config {
@@ -21,11 +27,19 @@ func parseConfig() *shortener.Config {
 }
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	cfg := parseConfig()
 	store := memstore.New()
 	app := shortener.New(cfg, store)
 
-	if err := app.Serve(); err != nil {
+	g, _ := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		return app.Serve(ctx)
+	})
+
+	if err := g.Wait(); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -8,13 +8,9 @@ import (
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
 	"github.com/iryzzh/practicum-go-shortener/internal/pkg/utils"
 	"io"
-	"log"
 	"net"
 	"net/http"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -38,12 +34,7 @@ func New(cfg *Config, store store.Store) *Shortener {
 	}
 }
 
-func (s *Shortener) Serve() error {
-	done := make(chan os.Signal, 1)
-	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-
-	ctx := context.Background()
-
+func (s *Shortener) Serve(ctx context.Context) error {
 	listener, err := s.getListener()
 	if err != nil {
 		return err
@@ -66,7 +57,7 @@ func (s *Shortener) Serve() error {
 		MaxHeaderBytes: 1 << 20,
 	}
 
-	log.Println("Starting HTTP server on", listener.Addr())
+	fmt.Println("Starting HTTP server on", listener.Addr())
 
 	serveError := make(chan error, 1)
 	go func() {
@@ -76,8 +67,13 @@ func (s *Shortener) Serve() error {
 		}
 	}()
 
-	<-done
-	log.Println("Stopping HTTP Server")
+	select {
+	case <-ctx.Done():
+		fmt.Println("Shutting down HTTP server")
+	case err := <-serveError:
+		fmt.Println("HTTP server error:", err)
+	}
+
 	timeout, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
@@ -85,7 +81,7 @@ func (s *Shortener) Serve() error {
 		srv.Close()
 	}
 
-	return nil
+	return err
 }
 
 func (s *Shortener) shortHandler(w http.ResponseWriter, r *http.Request) {
