@@ -4,6 +4,10 @@ import (
 	"github.com/iryzzh/practicum-go-shortener/internal/app/handlers"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store/memstore"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,7 +18,28 @@ var (
 	linkLen = 8
 )
 
-func Test_handler_GetHandler(t *testing.T) {
+func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io.Reader) (*http.Response, string) {
+	req, err := http.NewRequest(method, ts.URL+path, body)
+	require.NoError(t, err)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
+	return resp, string(respBody)
+}
+
+func TestHandler_Get(t *testing.T) {
 	st := memstore.New()
 	url := model.TestURL(t)
 	st.URL().Create(url)
@@ -52,30 +77,18 @@ func Test_handler_GetHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &handlers.Handler{
-				ServeMux: http.NewServeMux(),
-				Store:    st,
-				LinkLen:  0,
-			}
-			r := httptest.NewRequest(http.MethodGet, "/"+tt.params.id, nil)
-			w := httptest.NewRecorder()
-			h := http.HandlerFunc(s.GetHandler)
-			h.ServeHTTP(w, r)
+			handler := handlers.New(linkLen, st)
+			ts := httptest.NewServer(handler)
+			defer ts.Close()
 
-			result := w.Result()
-			defer result.Body.Close()
-
-			if result.StatusCode != tt.want.code {
-				t.Errorf("Expected status code %d, got %d", tt.want.code, w.Code)
-			}
-			if result.Header.Get("Location") != tt.want.location {
-				t.Errorf("Expected location %v, got %v", tt.want.location, result.Header.Get("Location"))
-			}
+			resp, _ := testRequest(t, ts, "GET", "/"+tt.params.id, nil)
+			assert.Equal(t, resp.StatusCode, tt.want.code)
+			assert.Equal(t, resp.Header.Get("Location"), tt.want.location)
 		})
 	}
 }
 
-func Test_handler_PostHandler(t *testing.T) {
+func TestHandler_Post(t *testing.T) {
 	st := memstore.New()
 
 	type params struct {
@@ -126,24 +139,23 @@ func Test_handler_PostHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &handlers.Handler{
-				ServeMux: http.NewServeMux(),
-				Store:    st,
-				LinkLen:  linkLen,
-			}
-			reader := strings.NewReader(tt.params.body)
-			r := httptest.NewRequest(http.MethodPost, tt.params.target, reader)
-			r.Host = "localhost:8080"
-			w := httptest.NewRecorder()
-			h := http.HandlerFunc(s.PostHandler)
-			h.ServeHTTP(w, r)
+			handler := handlers.New(linkLen, st)
+			ts := httptest.NewServer(handler)
+			defer ts.Close()
 
-			result := w.Result()
-			defer result.Body.Close()
+			body := strings.NewReader(tt.params.body)
+			r, b := testRequest(t, ts, "POST", "/", body)
+			assert.Equal(t, r.StatusCode, tt.want.code)
 
-			if result.StatusCode != tt.want.code {
-				t.Errorf("Expected status code %d, got %d", tt.want.code, w.Code)
-			}
+			assert.Condition(t, func() bool {
+				if r.StatusCode == http.StatusBadRequest {
+					return true
+				}
+				url := r.Request.URL.String()
+				assert.True(t, strings.HasPrefix(b, url))
+				l := strings.TrimPrefix(b, url)
+				return assert.Equal(t, linkLen, len(l))
+			})
 		})
 	}
 }
