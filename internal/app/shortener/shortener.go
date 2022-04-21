@@ -151,7 +151,12 @@ func (s *Shortener) decodeURL(r *http.Request) (string, error) {
 		return "", fmt.Errorf("incorrect id length")
 	}
 
-	return s.store.URL().GetByID(id)
+	url, err := s.store.URL().FindByID(id)
+	if err != nil {
+		return "", err
+	}
+
+	return url.URLOrigin, nil
 }
 
 func (s *Shortener) getListener() (net.Listener, error) {
