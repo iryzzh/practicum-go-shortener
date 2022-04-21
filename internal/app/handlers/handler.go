@@ -1,17 +1,19 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
 	"github.com/iryzzh/practicum-go-shortener/internal/pkg/utils"
 	"io"
 	"log"
 	"net/http"
-	"path"
-	"regexp"
 	"strings"
+	"time"
 )
 
 var (
@@ -19,56 +21,56 @@ var (
 )
 
 type Handler struct {
-	*http.ServeMux
+	*chi.Mux
 
 	Store   store.Store
 	LinkLen int
 }
 
-func New(linkLen int, store store.Store) http.Handler {
+func New(linkLen int, store store.Store) *Handler {
 	s := &Handler{
-		ServeMux: http.NewServeMux(),
-		LinkLen:  linkLen,
-		Store:    store,
+		Mux:     chi.NewMux(),
+		LinkLen: linkLen,
+		Store:   store,
 	}
 
-	s.HandleFunc("/", s.multiplexer)
+	s.Use(middleware.RequestID)
+	s.Use(middleware.RealIP)
+	s.Use(middleware.Logger)
+	s.Use(middleware.Recoverer)
 
-	handler := http.Handler(s)
-	handler = wrapLogger(handler)
+	// timeout
+	s.Use(middleware.Timeout(5 * time.Second))
 
-	return handler
+	s.Route("/", func(r chi.Router) {
+		r.Route("/{id}", func(r chi.Router) {
+			r.Use(s.ParseURL)
+			r.Get("/", RedirectHandler)
+		})
+		r.Post("/", s.PostHandler)
+	})
+
+	return s
 }
 
-func wrapLogger(handler http.Handler) http.Handler {
+type ctxLocation struct{}
+
+func (s *Handler) ParseURL(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s %s", r.Method, r.URL.Path)
-		handler.ServeHTTP(w, r)
+		id := chi.URLParam(r, "id")
+		url, err := s.Store.URL().FindByID(id)
+		if err != nil {
+			s.fail(w, ErrIncorrectID)
+			return
+		}
+		ctx := context.WithValue(r.Context(), ctxLocation{}, url.URLOrigin)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-func (s *Handler) multiplexer(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		s.GetHandler(w, r)
-	case http.MethodPost:
-		s.PostHandler(w, r)
-	}
-}
-
-func (s *Handler) GetHandler(w http.ResponseWriter, r *http.Request) {
-	id := s.id(r)
-	if id == "" {
-		s.fail(w, ErrIncorrectID)
-		return
-	}
-	url, err := s.Store.URL().FindByID(id)
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-
-	http.Redirect(w, r, url.URLOrigin, http.StatusTemporaryRedirect)
+func RedirectHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	http.Redirect(w, r, ctx.Value(ctxLocation{}).(string), http.StatusTemporaryRedirect)
 }
 
 func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
@@ -77,14 +79,6 @@ func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, nil)
 		return
 	}
-
-	//header := r.Header.Get("Content-Type")
-	//switch {
-	//case strings.EqualFold(header, "text/plain"), header == "":
-	//default:
-	//	s.fail(w, nil)
-	//	return
-	//}
 
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -108,17 +102,6 @@ func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(resp))
 }
 
-func (s *Handler) id(r *http.Request) string {
-	base := path.Base(r.URL.Path)
-	id := strings.Trim(base, "/")
-	re := regexp.MustCompile(`^[a-zA-Z\d]*$`)
-	if !re.MatchString(id) {
-		return ""
-	}
-
-	return id
-}
-
 func (s *Handler) fail(w http.ResponseWriter, e error) {
 	w.WriteHeader(http.StatusBadRequest)
 
@@ -132,16 +115,4 @@ func (s *Handler) fail(w http.ResponseWriter, e error) {
 			log.Panic(err)
 		}
 	}
-}
-
-func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet, http.MethodPost:
-	default:
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	handler, _ := s.Handler(r)
-	handler.ServeHTTP(w, r)
 }
