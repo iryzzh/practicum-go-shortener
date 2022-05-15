@@ -8,23 +8,19 @@ import (
 	"time"
 )
 
-type Config struct {
-	Network     string `env:"NETWORK" envDefault:"tcp"`
-	BindAddress string `env:"SERVER_ADDRESS" envDefault:"localhost:8080"`
-	BaseURL     string `env:"BASE_URL" envDefault:"http://localhost:8080"`
-	URLLen      int    `env:"LINK_LEN" envDefault:"8"`
-}
-
 type Server struct {
-	cfg     *Config
 	handler http.Handler
 	started chan string
+
+	network       string
+	serverAddress string
 }
 
-func New(cfg *Config, handler http.Handler) *Server {
+func New(network string, serverAddress string, handler http.Handler) *Server {
 	return &Server{
-		cfg:     cfg,
-		handler: handler,
+		network:       network,
+		serverAddress: serverAddress,
+		handler:       handler,
 	}
 }
 
@@ -83,7 +79,7 @@ func (s *Server) Serve(ctx context.Context) error {
 }
 
 func (s *Server) getListener() (net.Listener, error) {
-	l, err := net.Listen(s.cfg.Network, s.cfg.BindAddress)
+	l, err := net.Listen(s.network, s.serverAddress)
 	if err != nil {
 		return nil, err
 	}
