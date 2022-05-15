@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"io"
 	"io/ioutil"
+	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path"
@@ -18,8 +20,24 @@ import (
 )
 
 var (
-	linkLen = 8
+	linkLen       = 8
+	serverAddress = "localhost:8080"
+	baseURL       = "http://" + serverAddress
 )
+
+func newTestServer(handler http.Handler) *httptest.Server {
+	l, err := net.Listen("tcp", serverAddress)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ts := httptest.NewUnstartedServer(handler)
+	ts.Listener.Close()
+	ts.Listener = l
+
+	ts.Start()
+	return ts
+}
 
 func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io.Reader) (*http.Response, string) {
 	req, err := http.NewRequest(method, ts.URL+path, body)
@@ -80,8 +98,8 @@ func TestHandler_Get(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := handlers.New(linkLen, st)
-			ts := httptest.NewServer(handler)
+			handler := handlers.New(linkLen, baseURL, st)
+			ts := newTestServer(handler)
 			defer ts.Close()
 
 			resp, _ := testRequest(t, ts, "GET", "/"+tt.params.id, nil)
@@ -144,8 +162,8 @@ func TestHandler_Post(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := handlers.New(linkLen, st)
-			ts := httptest.NewServer(handler)
+			handler := handlers.New(linkLen, baseURL, st)
+			ts := newTestServer(handler)
 			defer ts.Close()
 
 			body := strings.NewReader(tt.params.body)
@@ -157,10 +175,8 @@ func TestHandler_Post(t *testing.T) {
 				if r.StatusCode == http.StatusBadRequest {
 					return true
 				}
-				url := r.Request.URL.String()
-				assert.True(t, strings.HasPrefix(b, url))
-				l := strings.TrimPrefix(b, url)
-				return assert.Equal(t, linkLen, len(l))
+				assert.True(t, strings.HasPrefix(b, baseURL))
+				return assert.Equal(t, linkLen, len(path.Base(b)))
 			})
 		})
 	}
@@ -198,8 +214,8 @@ func TestHandler_API_Post(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := handlers.New(linkLen, st)
-			ts := httptest.NewServer(handler)
+			handler := handlers.New(linkLen, baseURL, st)
+			ts := newTestServer(handler)
 			defer ts.Close()
 
 			body, _ := json.Marshal(tt.body)
@@ -219,7 +235,7 @@ func TestHandler_API_Post(t *testing.T) {
 
 				assert.True(t, r.Header.Get("content-type") == "application/json")
 
-				assert.True(t, strings.Contains(resp.Result, r.Request.Host))
+				assert.True(t, strings.Contains(resp.Result, baseURL))
 				return assert.Equal(t, linkLen, len(path.Base(resp.Result)))
 			})
 		})

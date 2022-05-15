@@ -27,12 +27,14 @@ type Handler struct {
 
 	Store   store.Store
 	LinkLen int
+	BaseURL string
 }
 
-func New(linkLen int, store store.Store) *Handler {
+func New(linkLen int, baseURL string, store store.Store) *Handler {
 	s := &Handler{
 		Mux:     chi.NewMux(),
 		LinkLen: linkLen,
+		BaseURL: baseURL,
 		Store:   store,
 	}
 
@@ -75,7 +77,7 @@ func (s *Handler) shorten(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := map[string]interface{}{
-		"result": "http://" + r.Host + "/" + url.URLShort,
+		"result": s.BaseURL + "/" + url.URLShort,
 	}
 
 	w.WriteHeader(http.StatusCreated)
@@ -127,7 +129,7 @@ func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := "http://" + r.Host + "/" + m.URLShort
+	resp := s.BaseURL + "/" + m.URLShort
 
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(resp))
