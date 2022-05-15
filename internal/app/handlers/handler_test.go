@@ -182,7 +182,7 @@ func TestHandler_API_Post(t *testing.T) {
 		{
 			name:           "test correct link",
 			body:           map[string]interface{}{"url": "http://example.com"},
-			wantStatusCode: http.StatusOK,
+			wantStatusCode: http.StatusCreated,
 		},
 		{
 			name:           "test incorrect body",

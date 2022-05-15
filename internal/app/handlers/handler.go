@@ -78,6 +78,7 @@ func (s *Handler) shorten(w http.ResponseWriter, r *http.Request) {
 		"result": "http://" + r.Host + "/" + url.URLShort,
 	}
 
+	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Panic(err)
 	}
