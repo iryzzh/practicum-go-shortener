@@ -17,7 +17,9 @@ import (
 )
 
 var (
-	ErrIncorrectID = errors.New("incorrect ID")
+	ErrIncorrectID  = errors.New("incorrect ID")
+	ErrIncorrectURL = errors.New("url is incorrect")
+	minURLLength    = 12
 )
 
 type Handler struct {
@@ -50,7 +52,35 @@ func New(linkLen int, store store.Store) *Handler {
 		r.Post("/", s.PostHandler)
 	})
 
+	s.Route("/api", func(r chi.Router) {
+		r.Post("/shorten", s.shorten)
+	})
+
 	return s
+}
+
+func (s *Handler) shorten(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("content-type", "application/json")
+	var url model.URL
+	err := json.NewDecoder(r.Body).Decode(&url)
+	if err != nil || len(url.URLOrigin) < minURLLength {
+		s.fail(w, ErrIncorrectURL)
+		return
+	}
+
+	url.URLShort = utils.RandStringBytesMaskImprSrcUnsafe(s.LinkLen)
+	if err := s.Store.URL().Create(&url); err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	resp := map[string]interface{}{
+		"result": "http://" + r.Host + "/" + url.URLShort,
+	}
+
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Panic(err)
+	}
 }
 
 type ctxLocation struct{}

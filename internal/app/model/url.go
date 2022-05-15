@@ -7,11 +7,11 @@ import (
 )
 
 type URL struct {
-	ID        int    `json:"id"`
+	ID        int    `json:"id,omitempty"`
 	URLOrigin string `json:"url"`
-	URLShort  string `json:"url_short"`
-	Visited   bool   `json:"visited"`
-	Count     int    `json:"count"`
+	URLShort  string `json:"url_short,omitempty"`
+	Visited   bool   `json:"visited,omitempty"`
+	Count     int    `json:"count,omitempty"`
 }
 
 func (u *URL) Validate() error {

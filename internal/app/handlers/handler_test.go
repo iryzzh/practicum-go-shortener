@@ -1,6 +1,8 @@
 package handlers_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/handlers"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store/memstore"
@@ -10,6 +12,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"strings"
 	"testing"
 )
@@ -158,6 +161,66 @@ func TestHandler_Post(t *testing.T) {
 				assert.True(t, strings.HasPrefix(b, url))
 				l := strings.TrimPrefix(b, url)
 				return assert.Equal(t, linkLen, len(l))
+			})
+		})
+	}
+}
+
+func TestHandler_API_Post(t *testing.T) {
+	endpoint := "/api/shorten"
+	st := memstore.New()
+
+	type Response struct {
+		Result string `json:"result"`
+	}
+
+	tests := []struct {
+		name           string
+		body           map[string]interface{}
+		wantStatusCode int
+	}{
+		{
+			name:           "test correct link",
+			body:           map[string]interface{}{"url": "http://example.com"},
+			wantStatusCode: http.StatusOK,
+		},
+		{
+			name:           "test incorrect body",
+			body:           map[string]interface{}{"url2": "http://example.com"},
+			wantStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:           "test incorrect link",
+			body:           map[string]interface{}{"url": "http:\\wrong.com"},
+			wantStatusCode: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := handlers.New(linkLen, st)
+			ts := httptest.NewServer(handler)
+			defer ts.Close()
+
+			body, _ := json.Marshal(tt.body)
+			r, b := testRequest(t, ts, "POST", endpoint, bytes.NewReader(body))
+			defer r.Body.Close()
+
+			assert.Equal(t, tt.wantStatusCode, r.StatusCode)
+			assert.Condition(t, func() bool {
+				if r.StatusCode == http.StatusBadRequest {
+					return true
+				}
+
+				var resp Response
+				if err := json.Unmarshal([]byte(b), &resp); err != nil {
+					t.Fatal(err)
+				}
+
+				assert.True(t, r.Header.Get("content-type") == "application/json")
+
+				assert.True(t, strings.Contains(resp.Result, r.Request.Host))
+				return assert.Equal(t, linkLen, len(path.Base(resp.Result)))
 			})
 		})
 	}
