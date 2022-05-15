@@ -13,11 +13,16 @@ var (
 	file = "testfile.txt"
 )
 
-func TestURLRepository_Create(t *testing.T) {
-	file, err := os.OpenFile(file, os.O_CREATE|os.O_APPEND, 0777)
+func newTestFile() *os.File {
+	file, err := os.OpenFile(file, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0777)
 	if err != nil {
 		log.Fatal(err)
 	}
+	return file
+}
+
+func TestURLRepository_Create(t *testing.T) {
+	file := newTestFile()
 	defer file.Close()
 	store := filestore.New(file)
 	url := model.TestURL(t)
@@ -26,10 +31,7 @@ func TestURLRepository_Create(t *testing.T) {
 }
 
 func TestURLRepository_FindByID(t *testing.T) {
-	file, err := os.OpenFile(file, os.O_CREATE|os.O_APPEND, 0777)
-	if err != nil {
-		log.Fatal(err)
-	}
+	file := newTestFile()
 	defer file.Close()
 	store := filestore.New(file)
 	url := model.TestURL(t)

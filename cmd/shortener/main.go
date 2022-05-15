@@ -44,7 +44,7 @@ func main() {
 
 	switch {
 	case cfg.FileStoragePath != "":
-		file, err := os.OpenFile(cfg.FileStoragePath, os.O_CREATE|os.O_APPEND, 0777)
+		file, err := os.OpenFile(cfg.FileStoragePath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0777)
 		if err != nil {
 			log.Fatal(err)
 		}
