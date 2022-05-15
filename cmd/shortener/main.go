@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"github.com/caarlos0/env/v6"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/handlers"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/server"
@@ -30,6 +31,12 @@ func parseConfig() *Config {
 	if err := env.Parse(cfg); err != nil {
 		log.Fatal(err)
 	}
+
+	flag.StringVar(&cfg.BindAddress, "a", cfg.BindAddress, "bind address")
+	flag.StringVar(&cfg.BaseURL, "b", cfg.BaseURL, "base url")
+	flag.StringVar(&cfg.FileStoragePath, "f", cfg.FileStoragePath, "file storage path")
+
+	flag.Parse()
 
 	return cfg
 }
