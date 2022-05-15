@@ -6,7 +6,6 @@ import (
 	"github.com/caarlos0/env/v6"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/handlers"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
-	"github.com/iryzzh/practicum-go-shortener/internal/app/server"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store/memstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,8 +20,14 @@ import (
 	"testing"
 )
 
-func parseConfig() *server.Config {
-	cfg := &server.Config{}
+type Config struct {
+	BindAddress string `env:"SERVER_ADDRESS" envDefault:"localhost:8080"`
+	BaseURL     string `env:"BASE_URL" envDefault:"http://localhost:8080"`
+	URLLen      int    `env:"LINK_LEN" envDefault:"8"`
+}
+
+func parseConfig() *Config {
+	cfg := &Config{}
 
 	if err := env.Parse(cfg); err != nil {
 		log.Fatal(err)
