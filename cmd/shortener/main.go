@@ -17,7 +17,7 @@ import (
 func parseConfig() *server.Config {
 	cfg := &server.Config{}
 
-	if err := env.Parse(&cfg); err != nil {
+	if err := env.Parse(cfg); err != nil {
 		log.Fatal(err)
 	}
 
