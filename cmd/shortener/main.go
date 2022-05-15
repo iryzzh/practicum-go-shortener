@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"flag"
+	"github.com/caarlos0/env/v6"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/handlers"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/server"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store/memstore"
@@ -17,12 +17,9 @@ import (
 func parseConfig() *server.Config {
 	cfg := &server.Config{}
 
-	flag.StringVar(&cfg.Network, "n", "tcp", "The network must be \"tcp\", \"tcp4\", \"tcp6\", \"unix\" or \"unixpacket\"")
-	flag.StringVar(&cfg.BindAddress, "a", "localhost", "Address to bind")
-	flag.StringVar(&cfg.BindPort, "p", "8080", "Port to bind")
-	flag.IntVar(&cfg.URLLen, "l", 8, "Generated link length")
-
-	flag.Parse()
+	if err := env.Parse(cfg); err != nil {
+		log.Fatal(err)
+	}
 
 	return cfg
 }
@@ -33,7 +30,7 @@ func main() {
 
 	cfg := parseConfig()
 	store := memstore.New()
-	handler := handlers.New(cfg.URLLen, store)
+	handler := handlers.New(cfg.URLLen, cfg.BaseURL, store)
 	srv := server.New(cfg, handler)
 
 	g, _ := errgroup.WithContext(ctx)

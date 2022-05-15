@@ -9,10 +9,10 @@ import (
 )
 
 type Config struct {
-	Network     string
-	BindAddress string
-	BindPort    string
-	URLLen      int
+	Network     string `env:"NETWORK" envDefault:"tcp"`
+	BindAddress string `env:"SERVER_ADDRESS" envDefault:"localhost:8080"`
+	BaseURL     string `env:"BASE_URL" envDefault:"http://localhost:8080"`
+	URLLen      int    `env:"LINK_LEN" envDefault:"8"`
 }
 
 type Server struct {
@@ -83,7 +83,7 @@ func (s *Server) Serve(ctx context.Context) error {
 }
 
 func (s *Server) getListener() (net.Listener, error) {
-	l, err := net.Listen(s.cfg.Network, s.cfg.BindAddress+":"+s.cfg.BindPort)
+	l, err := net.Listen(s.cfg.Network, s.cfg.BindAddress)
 	if err != nil {
 		return nil, err
 	}
