@@ -3,8 +3,10 @@ package handlers_test
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/caarlos0/env/v6"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/handlers"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
+	"github.com/iryzzh/practicum-go-shortener/internal/app/server"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store/memstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,14 +21,18 @@ import (
 	"testing"
 )
 
-var (
-	linkLen       = 8
-	serverAddress = "localhost:8080"
-	baseURL       = "http://" + serverAddress
-)
+func parseConfig() *server.Config {
+	cfg := &server.Config{}
 
-func newTestServer(handler http.Handler) *httptest.Server {
-	l, err := net.Listen("tcp", serverAddress)
+	if err := env.Parse(cfg); err != nil {
+		log.Fatal(err)
+	}
+
+	return cfg
+}
+
+func newTestServer(handler http.Handler, address string) *httptest.Server {
+	l, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -98,8 +104,9 @@ func TestHandler_Get(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := handlers.New(linkLen, baseURL, st)
-			ts := newTestServer(handler)
+			cfg := parseConfig()
+			handler := handlers.New(cfg.URLLen, cfg.BaseURL, st)
+			ts := newTestServer(handler, cfg.BindAddress)
 			defer ts.Close()
 
 			resp, _ := testRequest(t, ts, "GET", "/"+tt.params.id, nil)
@@ -162,8 +169,9 @@ func TestHandler_Post(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := handlers.New(linkLen, baseURL, st)
-			ts := newTestServer(handler)
+			cfg := parseConfig()
+			handler := handlers.New(cfg.URLLen, cfg.BaseURL, st)
+			ts := newTestServer(handler, cfg.BindAddress)
 			defer ts.Close()
 
 			body := strings.NewReader(tt.params.body)
@@ -175,8 +183,8 @@ func TestHandler_Post(t *testing.T) {
 				if r.StatusCode == http.StatusBadRequest {
 					return true
 				}
-				assert.True(t, strings.HasPrefix(b, baseURL))
-				return assert.Equal(t, linkLen, len(path.Base(b)))
+				assert.True(t, strings.HasPrefix(b, cfg.BaseURL))
+				return assert.Equal(t, cfg.URLLen, len(path.Base(b)))
 			})
 		})
 	}
@@ -214,8 +222,9 @@ func TestHandler_API_Post(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := handlers.New(linkLen, baseURL, st)
-			ts := newTestServer(handler)
+			cfg := parseConfig()
+			handler := handlers.New(cfg.URLLen, cfg.BaseURL, st)
+			ts := newTestServer(handler, cfg.BindAddress)
 			defer ts.Close()
 
 			body, _ := json.Marshal(tt.body)
@@ -235,8 +244,8 @@ func TestHandler_API_Post(t *testing.T) {
 
 				assert.True(t, r.Header.Get("content-type") == "application/json")
 
-				assert.True(t, strings.Contains(resp.Result, baseURL))
-				return assert.Equal(t, linkLen, len(path.Base(resp.Result)))
+				assert.True(t, strings.Contains(resp.Result, cfg.BaseURL))
+				return assert.Equal(t, cfg.URLLen, len(path.Base(resp.Result)))
 			})
 		})
 	}

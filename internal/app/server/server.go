@@ -12,7 +12,7 @@ type Config struct {
 	Network     string `env:"NETWORK" envDefault:"tcp"`
 	BindAddress string `env:"SERVER_ADDRESS" envDefault:"localhost:8080"`
 	BaseURL     string `env:"BASE_URL" envDefault:"http://localhost:8080"`
-	URLLen      int
+	URLLen      int    `env:"LINK_LEN" envDefault:"8"`
 }
 
 type Server struct {
