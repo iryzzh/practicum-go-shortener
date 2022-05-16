@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -65,7 +66,14 @@ func New(linkLen int, baseURL string, store store.Store) *Handler {
 func (s *Handler) shorten(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "application/json")
 	var url model.URL
-	err := json.NewDecoder(r.Body).Decode(&url)
+
+	reader, err := gzipReader(r)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	err = json.NewDecoder(reader).Decode(&url)
 	if err != nil || len(url.URLOrigin) < minURLLength {
 		s.fail(w, ErrIncorrectURL)
 		return
@@ -114,7 +122,13 @@ func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b, err := io.ReadAll(r.Body)
+	reader, err := gzipReader(r)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	b, err := io.ReadAll(reader)
 	if err != nil {
 		s.fail(w, err)
 		return
@@ -135,6 +149,21 @@ func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(resp))
+}
+
+func gzipReader(r *http.Request) (io.Reader, error) {
+	reader := r.Body
+
+	if r.Header.Get(`Content-Encoding`) == `gzip` {
+		gz, err := gzip.NewReader(reader)
+		if err != nil {
+			return nil, err
+		}
+		reader = gz
+		gz.Close()
+	}
+
+	return reader, nil
 }
 
 func (s *Handler) fail(w http.ResponseWriter, e error) {
