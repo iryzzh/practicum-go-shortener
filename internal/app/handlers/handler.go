@@ -42,6 +42,7 @@ func New(linkLen int, baseURL string, store store.Store) *Handler {
 	s.Use(middleware.RealIP)
 	s.Use(middleware.Logger)
 	s.Use(middleware.Recoverer)
+	s.Use(middleware.Compress(5))
 
 	// timeout
 	s.Use(middleware.Timeout(5 * time.Second))
@@ -131,6 +132,7 @@ func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
 
 	resp := s.BaseURL + "/" + m.URLShort
 
+	w.Header().Set("content-type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(resp))
 }
