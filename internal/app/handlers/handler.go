@@ -103,8 +103,6 @@ func (s *Handler) shorten(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type ctxLocation struct{}
-
 func (s *Handler) ParseURL(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
@@ -113,14 +111,14 @@ func (s *Handler) ParseURL(next http.Handler) http.Handler {
 			s.fail(w, ErrIncorrectID)
 			return
 		}
-		ctx := context.WithValue(r.Context(), ctxLocation{}, url.URLOrigin)
+		ctx := context.WithValue(r.Context(), "location", url.URLOrigin)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func RedirectHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	http.Redirect(w, r, ctx.Value(ctxLocation{}).(string), http.StatusTemporaryRedirect)
+	http.Redirect(w, r, ctx.Value("location").(string), http.StatusTemporaryRedirect)
 }
 
 func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
