@@ -4,36 +4,24 @@ import (
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store/filestore"
 	"github.com/stretchr/testify/assert"
-	"log"
-	"os"
 	"testing"
 )
 
 var (
-	file = "testfile.txt"
+	filepath = "testfile.txt"
 )
 
-func newTestFile() *os.File {
-	file, err := os.OpenFile(file, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0777)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return file
-}
-
 func TestURLRepository_Create(t *testing.T) {
-	file := newTestFile()
+	store, file := filestore.New(filepath)
 	defer file.Close()
-	store := filestore.New(file)
 	url := model.TestURL(t)
 	assert.NoError(t, store.URL().Create(url))
 	assert.NotNil(t, url.ID)
 }
 
 func TestURLRepository_FindByID(t *testing.T) {
-	file := newTestFile()
+	store, file := filestore.New(filepath)
 	defer file.Close()
-	store := filestore.New(file)
 	url := model.TestURL(t)
 	assert.NoError(t, store.URL().Create(url))
 	r, err := store.URL().FindByID(url.URLShort)

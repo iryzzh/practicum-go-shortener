@@ -51,12 +51,9 @@ func main() {
 
 	switch {
 	case cfg.FileStoragePath != "":
-		file, err := os.OpenFile(cfg.FileStoragePath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0777)
-		if err != nil {
-			log.Fatal(err)
-		}
+		var file *os.File
+		s, file = filestore.New(cfg.FileStoragePath)
 		defer file.Close()
-		s = filestore.New(file)
 	default:
 		s = memstore.New()
 	}

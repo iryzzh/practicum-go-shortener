@@ -15,7 +15,12 @@ type Store struct {
 	nextID int
 }
 
-func New(file *os.File) *Store {
+func New(filepath string) (*Store, *os.File) {
+	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0777)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	s := &Store{
 		file:   file,
 		nextID: 0,
@@ -23,7 +28,7 @@ func New(file *os.File) *Store {
 
 	s.startup()
 
-	return s
+	return s, file
 }
 
 func (s *Store) startup() {
