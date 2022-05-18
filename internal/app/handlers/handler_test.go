@@ -3,7 +3,7 @@ package handlers_test
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/caarlos0/env/v6"
+	"github.com/iryzzh/practicum-go-shortener/cmd/shortener/config"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/handlers"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store/memstore"
@@ -19,22 +19,6 @@ import (
 	"strings"
 	"testing"
 )
-
-type Config struct {
-	BindAddress string `env:"SERVER_ADDRESS" envDefault:"localhost:8080"`
-	BaseURL     string `env:"BASE_URL" envDefault:"http://localhost:8080"`
-	URLLen      int    `env:"LINK_LEN" envDefault:"8"`
-}
-
-func parseConfig() *Config {
-	cfg := &Config{}
-
-	if err := env.Parse(cfg); err != nil {
-		log.Fatal(err)
-	}
-
-	return cfg
-}
 
 func newTestServer(handler http.Handler, address string) *httptest.Server {
 	l, err := net.Listen("tcp", address)
@@ -75,6 +59,10 @@ func TestHandler_Get(t *testing.T) {
 	st := memstore.New()
 	url := model.TestURL(t)
 	st.URL().Create(url)
+	cfg, err := config.New()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	type params struct {
 		id string
@@ -109,7 +97,6 @@ func TestHandler_Get(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := parseConfig()
 			handler := handlers.New(cfg.URLLen, cfg.BaseURL, st)
 			ts := newTestServer(handler, cfg.BindAddress)
 			defer ts.Close()
@@ -125,6 +112,10 @@ func TestHandler_Get(t *testing.T) {
 
 func TestHandler_Post(t *testing.T) {
 	st := memstore.New()
+	cfg, err := config.New()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	type params struct {
 		body   string
@@ -174,7 +165,6 @@ func TestHandler_Post(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := parseConfig()
 			handler := handlers.New(cfg.URLLen, cfg.BaseURL, st)
 			ts := newTestServer(handler, cfg.BindAddress)
 			defer ts.Close()
@@ -198,6 +188,10 @@ func TestHandler_Post(t *testing.T) {
 func TestHandler_API_Post(t *testing.T) {
 	endpoint := "/api/shorten"
 	st := memstore.New()
+	cfg, err := config.New()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	type Response struct {
 		Result string `json:"result"`
@@ -227,7 +221,6 @@ func TestHandler_API_Post(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := parseConfig()
 			handler := handlers.New(cfg.URLLen, cfg.BaseURL, st)
 			ts := newTestServer(handler, cfg.BindAddress)
 			defer ts.Close()

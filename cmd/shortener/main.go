@@ -2,8 +2,7 @@ package main
 
 import (
 	"context"
-	"flag"
-	"github.com/caarlos0/env/v6"
+	"github.com/iryzzh/practicum-go-shortener/cmd/shortener/config"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/handlers"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/server"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
@@ -17,35 +16,14 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type Config struct {
-	Network         string `env:"NETWORK" envDefault:"tcp"`
-	BindAddress     string `env:"SERVER_ADDRESS" envDefault:"localhost:8080"`
-	BaseURL         string `env:"BASE_URL" envDefault:"http://localhost:8080"`
-	URLLen          int    `env:"LINK_LEN" envDefault:"8"`
-	FileStoragePath string `env:"FILE_STORAGE_PATH"`
-}
-
-func parseConfig() *Config {
-	cfg := &Config{}
-
-	if err := env.Parse(cfg); err != nil {
-		log.Fatal(err)
-	}
-
-	flag.StringVar(&cfg.BindAddress, "a", cfg.BindAddress, "bind address")
-	flag.StringVar(&cfg.BaseURL, "b", cfg.BaseURL, "base url")
-	flag.StringVar(&cfg.FileStoragePath, "f", cfg.FileStoragePath, "file storage path")
-
-	flag.Parse()
-
-	return cfg
-}
-
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	cfg := parseConfig()
+	cfg, err := config.New()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	var s store.Store
 
