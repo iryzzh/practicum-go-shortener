@@ -44,6 +44,7 @@ func New(linkLen int, baseURL string, store store.Store) *Handler {
 	s.Use(middleware.Logger)
 	s.Use(middleware.Recoverer)
 	s.Use(middleware.Compress(5))
+	s.Use(gzipMiddleware)
 
 	// timeout
 	s.Use(middleware.Timeout(5 * time.Second))
@@ -54,26 +55,33 @@ func New(linkLen int, baseURL string, store store.Store) *Handler {
 			r.Get("/", RedirectHandler)
 		})
 		r.Post("/", s.PostHandler)
-	})
-
-	s.Route("/api", func(r chi.Router) {
-		r.Post("/shorten", s.shorten)
+		r.Route("/api", func(r chi.Router) {
+			r.Post("/shorten", s.shorten)
+		})
 	})
 
 	return s
+}
+
+func gzipMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(`Content-Encoding`) == `gzip` {
+			gz, err := gzip.NewReader(r.Body)
+			if err != nil {
+				log.Fatal(err)
+			}
+			r.Body = gz
+			gz.Close()
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Handler) shorten(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "application/json")
 	var url model.URL
 
-	reader, err := gzipReader(r)
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-
-	err = json.NewDecoder(reader).Decode(&url)
+	err := json.NewDecoder(r.Body).Decode(&url)
 	if err != nil || len(url.URLOrigin) < minURLLength {
 		s.fail(w, ErrIncorrectURL)
 		return
@@ -122,13 +130,7 @@ func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reader, err := gzipReader(r)
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-
-	b, err := io.ReadAll(reader)
+	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		s.fail(w, err)
 		return
