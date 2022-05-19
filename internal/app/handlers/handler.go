@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -42,6 +43,8 @@ func New(linkLen int, baseURL string, store store.Store) *Handler {
 	s.Use(middleware.RealIP)
 	s.Use(middleware.Logger)
 	s.Use(middleware.Recoverer)
+	s.Use(middleware.Compress(5))
+	s.Use(gzipMiddleware)
 
 	// timeout
 	s.Use(middleware.Timeout(5 * time.Second))
@@ -52,18 +55,32 @@ func New(linkLen int, baseURL string, store store.Store) *Handler {
 			r.Get("/", RedirectHandler)
 		})
 		r.Post("/", s.PostHandler)
-	})
-
-	s.Route("/api", func(r chi.Router) {
-		r.Post("/shorten", s.shorten)
+		r.Route("/api", func(r chi.Router) {
+			r.Post("/shorten", s.shorten)
+		})
 	})
 
 	return s
 }
 
+func gzipMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(`Content-Encoding`) == `gzip` {
+			gz, err := gzip.NewReader(r.Body)
+			if err != nil {
+				log.Fatal(err)
+			}
+			r.Body = gz
+			gz.Close()
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *Handler) shorten(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "application/json")
 	var url model.URL
+
 	err := json.NewDecoder(r.Body).Decode(&url)
 	if err != nil || len(url.URLOrigin) < minURLLength {
 		s.fail(w, ErrIncorrectURL)
@@ -86,8 +103,6 @@ func (s *Handler) shorten(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type ctxLocation struct{}
-
 func (s *Handler) ParseURL(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
@@ -96,14 +111,14 @@ func (s *Handler) ParseURL(next http.Handler) http.Handler {
 			s.fail(w, ErrIncorrectID)
 			return
 		}
-		ctx := context.WithValue(r.Context(), ctxLocation{}, url.URLOrigin)
+		ctx := context.WithValue(r.Context(), "location", url.URLOrigin)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func RedirectHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	http.Redirect(w, r, ctx.Value(ctxLocation{}).(string), http.StatusTemporaryRedirect)
+	http.Redirect(w, r, ctx.Value("location").(string), http.StatusTemporaryRedirect)
 }
 
 func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
@@ -131,8 +146,24 @@ func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
 
 	resp := s.BaseURL + "/" + m.URLShort
 
+	w.Header().Set("content-type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(resp))
+}
+
+func gzipReader(r *http.Request) (io.Reader, error) {
+	reader := r.Body
+
+	if r.Header.Get(`Content-Encoding`) == `gzip` {
+		gz, err := gzip.NewReader(reader)
+		if err != nil {
+			return nil, err
+		}
+		reader = gz
+		gz.Close()
+	}
+
+	return reader, nil
 }
 
 func (s *Handler) fail(w http.ResponseWriter, e error) {
