@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"github.com/caarlos0/env/v6"
+	"sync"
 )
 
 type Config struct {
@@ -13,21 +14,22 @@ type Config struct {
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 }
 
+var once sync.Once
+
 func New() (*Config, error) {
 	cfg := &Config{}
-	err := env.Parse(cfg)
 
-	regStrVar(&cfg.BindAddress, "a", cfg.BindAddress, "bind address")
-	regStrVar(&cfg.BaseURL, "b", cfg.BaseURL, "base url")
-	regStrVar(&cfg.FileStoragePath, "f", cfg.FileStoragePath, "file storage path")
-
-	flag.Parse()
-
-	return cfg, err
-}
-
-func regStrVar(s *string, name string, value string, usage string) {
-	if flag.Lookup(name) == nil {
-		flag.StringVar(s, name, value, usage)
+	if err := env.Parse(cfg); err != nil {
+		return nil, err
 	}
+
+	once.Do(func() {
+		flag.StringVar(&cfg.BindAddress, "a", cfg.BindAddress, "bind address")
+		flag.StringVar(&cfg.BaseURL, "b", cfg.BaseURL, "base url")
+		flag.StringVar(&cfg.FileStoragePath, "f", cfg.FileStoragePath, "file storage path")
+
+		flag.Parse()
+	})
+
+	return cfg, nil
 }
