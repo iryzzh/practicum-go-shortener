@@ -9,17 +9,25 @@ import (
 type Store struct {
 	sync.Mutex
 
-	urls   map[int]*model.URL
-	nextID int
+	urls       map[int]*model.URL
+	users      map[int]*model.User
+	urlNextID  int
+	userNextID int
 }
 
 func New() *Store {
 	return &Store{
-		urls:   make(map[int]*model.URL),
-		nextID: 0,
+		urls:       make(map[int]*model.URL),
+		users:      make(map[int]*model.User),
+		urlNextID:  0,
+		userNextID: 0,
 	}
 }
 
 func (s *Store) URL() store.URLRepository {
 	return &URLRepository{store: s}
+}
+
+func (s *Store) User() store.UserRepository {
+	return &UserRepository{store: s}
 }

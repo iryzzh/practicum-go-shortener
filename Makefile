@@ -6,7 +6,7 @@ build:
 test:
 	@go test -v -race -timeout 30s ./...
 
-shortenertest: build increment1 increment2 increment3 increment4 increment5 increment6 increment7 increment8
+shortenertest: build increment1 increment2 increment3 increment4 increment5 increment6 increment7 increment8 increment9
 
 increment1:
 	@shortenertest -test.v -test.run=^TestIteration1$$ \
@@ -49,6 +49,11 @@ increment7:
 
 increment8:
 	@shortenertest -test.v -test.run=^TestIteration8$$ \
+		-source-path=. \
+		-binary-path=cmd/shortener/shortener
+
+increment9:
+	@shortenertest -test.v -test.run=^TestIteration9$$ \
 		-source-path=. \
 		-binary-path=cmd/shortener/shortener
 

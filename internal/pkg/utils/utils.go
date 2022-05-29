@@ -1,6 +1,8 @@
 package utils
 
 import (
+	cr "crypto/rand"
+	"io"
 	"math/rand"
 	"time"
 	"unsafe"
@@ -33,4 +35,12 @@ func RandStringBytesMaskImprSrcUnsafe(n int) string {
 	}
 
 	return *(*string)(unsafe.Pointer(&b))
+}
+
+func GenerateRandomKey(length int) []byte {
+	k := make([]byte, length)
+	if _, err := io.ReadFull(cr.Reader, k); err != nil {
+		return nil
+	}
+	return k
 }

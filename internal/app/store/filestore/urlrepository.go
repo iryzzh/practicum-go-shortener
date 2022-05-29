@@ -2,29 +2,26 @@ package filestore
 
 import (
 	"encoding/json"
-	"errors"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
-	"io"
+	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
 )
 
 type URLRepository struct {
 	store *Store
 }
 
-var (
-	errRecordNotFound = errors.New("record not found")
-)
-
 func (r *URLRepository) Create(u *model.URL) error {
 	if err := u.Validate(); err != nil {
 		return err
 	}
 
-	file := r.store.file
+	if _, err := r.store.URL().FindByUUID(u.URLShort); err != nil && err != store.ErrRecordNotFound {
+		return err
+	}
 
 	r.store.Lock()
-	u.ID = r.store.nextID + 1
-	r.store.nextID++
+	u.ID = r.store.nextUrlID + 1
+	r.store.nextUrlID++
 	r.store.Unlock()
 
 	data, err := json.Marshal(&u)
@@ -32,41 +29,52 @@ func (r *URLRepository) Create(u *model.URL) error {
 		return err
 	}
 
-	data = append(data, '\n')
-
-	_, err = file.Write(data)
-
-	return err
+	return r.store.Write(data)
 }
 
-func (r *URLRepository) FindByID(id string) (*model.URL, error) {
-	m := &model.URL{}
-	file := r.store.file
-	fi, err := file.Stat()
+func (r *URLRepository) Exists(u *model.URL) bool {
+	urls, err := r.store.ReadUrls()
 	if err != nil {
-		return m, err
+		return false
 	}
 
-	rdr := NewReader(file, int(fi.Size()))
-	for {
-		line, err := rdr.LineReversed()
-		if err != nil {
-			if err == io.EOF {
-				return m, errRecordNotFound
-			}
-			return m, err
-		}
-		if len(line) == 0 {
-			continue
-		}
-
-		if err := json.Unmarshal([]byte(line), m); err != nil {
-			return m, err
-		}
-		if id == m.URLShort {
-			return m, nil
+	for _, v := range urls {
+		if v.URLShort == u.URLShort {
+			return true
 		}
 	}
+
+	return false
+}
+
+func (r *URLRepository) FindByID(id int) (*model.URL, error) {
+	urls, err := r.store.ReadUrls()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, v := range urls {
+		if v.ID == id {
+			return &v, nil
+		}
+	}
+
+	return nil, store.ErrRecordNotFound
+}
+
+func (r *URLRepository) FindByUUID(uuid string) (*model.URL, error) {
+	urls, err := r.store.ReadUrls()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, v := range urls {
+		if v.URLShort == uuid {
+			return &v, nil
+		}
+	}
+
+	return nil, store.ErrRecordNotFound
 }
 
 func (r *URLRepository) IncrementStats(i int) {}

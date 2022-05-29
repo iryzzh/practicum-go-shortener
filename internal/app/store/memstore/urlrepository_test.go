@@ -18,7 +18,7 @@ func TestURLRepository_FindByID(t *testing.T) {
 	store := memstore.New()
 	url := model.TestURL(t)
 	assert.NoError(t, store.URL().Create(url))
-	r, err := store.URL().FindByID(url.URLShort)
+	r, err := store.URL().FindByUUID(url.URLShort)
 	assert.Equal(t, url.URLOrigin, r.URLOrigin)
 	assert.NoError(t, err)
 	assert.NotNil(t, r)
