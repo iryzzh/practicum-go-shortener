@@ -40,17 +40,3 @@ func (r *UserRepository) FindByUUID(uuid string) (*model.User, error) {
 
 	return &model.User{}, store.ErrUserNotFound
 }
-
-func (r *UserRepository) SaveURL(user *model.User, url *model.URL) error {
-	r.store.Lock()
-	defer r.store.Unlock()
-
-	for i, v := range r.store.users {
-		if v.UUID == user.UUID {
-			r.store.users[i].URL = append(r.store.users[i].URL, model.UserURLID{ID: url.ID})
-			return nil
-		}
-	}
-
-	return store.ErrUserNotFound
-}

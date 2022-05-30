@@ -84,6 +84,7 @@ func (s *Handler) Status(w http.ResponseWriter, r *http.Request) {
 
 func (s *Handler) userUrls(w http.ResponseWriter, r *http.Request) {
 	session, _ := s.sessionsStore.Get(r, s.cookieName)
+
 	if session.Values["uuid"] != nil {
 		user, err := s.Store.User().FindByUUID(session.Values["uuid"].(string))
 		if err != nil {
@@ -94,25 +95,27 @@ func (s *Handler) userUrls(w http.ResponseWriter, r *http.Request) {
 			s.fail(w, err)
 			return
 		}
+
 		type response struct {
 			ShortURL    string `json:"short_url"`
 			OriginalURL string `json:"original_url"`
 		}
+
 		var resp []response
-		for _, v := range user.URL {
-			url, err := s.Store.URL().FindByID(v.ID)
-			if err != nil {
-				if err == store.ErrRecordNotFound {
-					continue
-				}
-				s.fail(w, err)
-				return
-			}
+
+		urls, err := s.Store.URL().FindByUserID(user.ID)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+
+		for _, v := range urls {
 			resp = append(resp, response{
-				ShortURL:    s.BaseURL + "/" + url.URLShort,
-				OriginalURL: url.URLOrigin,
+				ShortURL:    s.BaseURL + "/" + v.URLShort,
+				OriginalURL: v.URLOrigin,
 			})
 		}
+
 		if len(resp) > 0 {
 			w.Header().Set("content-type", "application/json")
 			if err := json.NewEncoder(w).Encode(resp); err != nil {
@@ -121,6 +124,7 @@ func (s *Handler) userUrls(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -193,7 +197,7 @@ func (s *Handler) SaveURL(r *http.Request, url *model.URL) error {
 		if err != nil {
 			return err
 		}
-		if err := s.Store.User().SaveURL(user, url); err != nil {
+		if err := s.Store.URL().UpdateUserID(url, user.ID); err != nil {
 			return err
 		}
 	}
@@ -216,7 +220,11 @@ func (s *Handler) ParseURL(next http.Handler) http.Handler {
 
 func RedirectHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	http.Redirect(w, r, ctx.Value("location").(string), http.StatusTemporaryRedirect)
+	if location, ok := ctx.Value("location").(string); ok {
+		http.Redirect(w, r, location, http.StatusTemporaryRedirect)
+		return
+	}
+	w.WriteHeader(http.StatusInternalServerError)
 }
 
 func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {

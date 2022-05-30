@@ -1,15 +1,14 @@
-package filestore_test
+package memstore_test
 
 import (
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
-	"github.com/iryzzh/practicum-go-shortener/internal/app/store/filestore"
+	"github.com/iryzzh/practicum-go-shortener/internal/app/store/memstore"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func TestUserRepository(t *testing.T) {
-	store, file := filestore.New(filepath)
-	defer file.Close()
+func TestURLRepository(t *testing.T) {
+	store := memstore.New()
 
 	url := model.TestURL(t)
 	user := model.TestUser(t)
@@ -30,4 +29,8 @@ func TestUserRepository(t *testing.T) {
 
 	err = store.URL().UpdateUserID(url, user.ID)
 	assert.NoError(t, err)
+
+	urls, err := store.URL().FindByUserID(user.ID)
+	assert.NoError(t, err)
+	assert.NotNil(t, urls)
 }

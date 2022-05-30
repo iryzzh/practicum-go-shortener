@@ -24,16 +24,6 @@ func (r *URLRepository) Create(u *model.URL) error {
 	return nil
 }
 
-func (r *URLRepository) Exists(u *model.URL) bool {
-	for _, v := range r.store.urls {
-		if v.URLShort == u.URLShort {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (r *URLRepository) FindByID(id int) (*model.URL, error) {
 	for _, v := range r.store.urls {
 		if id == v.ID {
@@ -54,9 +44,20 @@ func (r *URLRepository) FindByUUID(uuid string) (*model.URL, error) {
 	return nil, store.ErrRecordNotFound
 }
 
-func (r *URLRepository) IncrementStats(i int) {
-	r.store.Lock()
-	defer r.store.Unlock()
-	r.store.urls[i].Visited = true
-	r.store.urls[i].Count++
+func (r *URLRepository) FindByUserID(id int) ([]*model.URL, error) {
+	var result []*model.URL
+
+	for _, v := range r.store.urls {
+		if v.UserID == id {
+			result = append(result, v)
+		}
+	}
+
+	return result, nil
+}
+
+func (r *URLRepository) UpdateUserID(url *model.URL, userID int) error {
+	url.UserID = userID
+
+	return nil
 }

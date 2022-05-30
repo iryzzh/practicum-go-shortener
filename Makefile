@@ -6,7 +6,8 @@ build:
 test:
 	@go test -v -race -timeout 30s ./...
 
-shortenertest: build increment1 increment2 increment3 increment4 increment5 increment6 increment7 increment8 increment9
+shortenertest: build increment1 increment2 increment3 increment4 increment5 increment6 increment7 increment8 \
+	increment9 increment10 increment11
 
 increment1:
 	@shortenertest -test.v -test.run=^TestIteration1$$ \
@@ -60,6 +61,11 @@ increment9:
 increment10:
 	@shortenertest -test.v -test.run=^TestIteration10$$ \
                   -source-path=. \
+                  -binary-path=cmd/shortener/shortener \
+                  -database-dsn='postgresql://shortener:my_super_password12345@localhost/shortener?sslmode=disable'
+
+increment11:
+	@shortenertest -test.v -test.run=^TestIteration11$$ \
                   -binary-path=cmd/shortener/shortener \
                   -database-dsn='postgresql://shortener:my_super_password12345@localhost/shortener?sslmode=disable'
 

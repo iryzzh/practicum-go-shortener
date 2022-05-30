@@ -2,7 +2,11 @@ package sqlstore
 
 import (
 	"database/sql"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
+	"log"
 )
 
 type Store struct {
@@ -10,9 +14,34 @@ type Store struct {
 }
 
 func New(db *sql.DB) *Store {
-	return &Store{
+	s := &Store{
 		db: db,
 	}
+
+	if err := s.migrate(); err != nil {
+		log.Fatal(err)
+	}
+
+	return s
+}
+
+func (s *Store) migrate() error {
+	driver, err := postgres.WithInstance(s.db, &postgres.Config{})
+	if err != nil {
+		return err
+	}
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://db/migrations/pg",
+		"postgres", driver)
+	if err != nil {
+		return err
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Store) URL() store.URLRepository {

@@ -7,7 +7,11 @@ import (
 	"testing"
 )
 
-func TestUserRepository(t *testing.T) {
+var (
+	filepath = "testfile.txt"
+)
+
+func TestURLRepository(t *testing.T) {
 	store, file := filestore.New(filepath)
 	defer file.Close()
 
@@ -30,4 +34,8 @@ func TestUserRepository(t *testing.T) {
 
 	err = store.URL().UpdateUserID(url, user.ID)
 	assert.NoError(t, err)
+
+	urls, err := store.URL().FindByUserID(user.ID)
+	assert.NoError(t, err)
+	assert.NotNil(t, urls)
 }

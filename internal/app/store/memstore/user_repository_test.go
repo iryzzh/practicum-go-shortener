@@ -7,17 +7,26 @@ import (
 	"testing"
 )
 
-func TestUserCreate(t *testing.T) {
+func TestUserRepository(t *testing.T) {
 	store := memstore.New()
+
+	url := model.TestURL(t)
 	user := model.TestUser(t)
+
+	assert.NoError(t, store.URL().Create(url))
+	assert.NotNil(t, url.ID)
+
 	assert.NoError(t, store.User().Create(user))
 	assert.NotNil(t, user.ID)
-}
 
-func TestUserSaveURL(t *testing.T) {
-	store := memstore.New()
-	user := model.TestUser(t)
-	url := model.TestURL(t)
-	assert.NoError(t, store.User().Create(user))
-	assert.NoError(t, store.User().SaveURL(user, url))
+	u, err := store.URL().FindByUUID(url.URLShort)
+	assert.NoError(t, err)
+	assert.Equal(t, url.URLOrigin, u.URLOrigin)
+
+	u2, err := store.URL().FindByID(url.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, u, u2)
+
+	err = store.URL().UpdateUserID(url, user.ID)
+	assert.NoError(t, err)
 }
