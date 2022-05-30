@@ -3,7 +3,6 @@ package handlers
 import (
 	"compress/gzip"
 	"context"
-	"encoding/json"
 	"errors"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -12,6 +11,7 @@ import (
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
 	"github.com/iryzzh/practicum-go-shortener/internal/pkg/utils"
+	"github.com/json-iterator/go"
 	"io"
 	"io/ioutil"
 	"log"
@@ -24,6 +24,8 @@ var (
 	ErrIncorrectID  = errors.New("incorrect ID")
 	ErrIncorrectURL = errors.New("url is incorrect")
 	minURLLength    = 12
+
+	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 type Handler struct {
@@ -79,9 +81,6 @@ func New(linkLen int, baseURL string, store store.Store) *Handler {
 func (s *Handler) batch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "application/json")
 
-	var u []model.URL
-	var response []model.URL
-
 	b, err := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	if err != nil {
@@ -89,31 +88,43 @@ func (s *Handler) batch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = json.Unmarshal(b, &u)
+	type response struct {
+		CorrelationID string `json:"correlation_id"`
+		OriginalURL   string `json:"original_url,omitempty"`
+		ShortURL      string `json:"short_url,omitempty"`
+	}
+
+	var r1 []response
+	var r2 []response
+
+	err = json.Unmarshal(b, &r1)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
 
-	for _, v := range u {
-		v.URLShort = utils.RandStringBytesMaskImprSrcUnsafe(s.LinkLen)
+	for _, v := range r1 {
+		shortURL := utils.RandStringBytesMaskImprSrcUnsafe(s.LinkLen)
 
-		if err := s.Store.URL().Create(&v); err != nil {
+		if err := s.Store.URL().Create(&model.URL{
+			URLOrigin: v.OriginalURL,
+			URLShort:  shortURL,
+		}); err != nil {
 			s.fail(w, err)
 			return
 		}
-		response = append(response, model.URL{
+		r2 = append(r2, response{
 			CorrelationID: v.CorrelationID,
-			URLShort:      s.BaseURL + "/" + v.URLShort,
+			ShortURL:      s.BaseURL + "/" + shortURL,
 		})
 	}
 
-	if len(response) > 0 {
+	if len(r2) > 0 {
 		w.Header().Set("content-type", "application/json")
 
 		w.WriteHeader(http.StatusCreated)
 
-		if err := json.NewEncoder(w).Encode(response); err != nil {
+		if err := json.NewEncoder(w).Encode(r2); err != nil {
 			s.fail(w, err)
 			return
 		}
@@ -144,7 +155,12 @@ func (s *Handler) userUrls(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		var u []model.URL
+		type response struct {
+			ShortURL    string `json:"short_url"`
+			OriginalURL string `json:"original_url"`
+		}
+
+		var resp []response
 
 		urls, err := s.Store.URL().FindByUserID(user.ID)
 		if err != nil {
@@ -153,15 +169,15 @@ func (s *Handler) userUrls(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, v := range urls {
-			u = append(u, model.URL{
-				URLShort:  s.BaseURL + "/" + v.URLShort,
-				URLOrigin: v.URLOrigin,
+			resp = append(resp, response{
+				ShortURL:    s.BaseURL + "/" + v.URLShort,
+				OriginalURL: v.URLOrigin,
 			})
 		}
 
-		if len(u) > 0 {
+		if len(resp) > 0 {
 			w.Header().Set("content-type", "application/json")
-			if err := json.NewEncoder(w).Encode(u); err != nil {
+			if err := json.NewEncoder(w).Encode(resp); err != nil {
 				s.fail(w, err)
 				return
 			}

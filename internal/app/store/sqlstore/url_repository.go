@@ -15,8 +15,9 @@ func (r *URLRepository) Create(u *model.URL) error {
 		return err
 	}
 
-	if _, err := r.store.URL().FindByUUID(u.URLShort); err != nil && err != store.ErrRecordNotFound {
-		return err
+	if url, _ := r.store.URL().FindByUUID(u.URLShort); url != nil {
+		u.ID = url.ID
+		return nil
 	}
 
 	return r.store.db.QueryRow(
