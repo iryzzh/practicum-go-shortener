@@ -69,4 +69,9 @@ increment11:
                   -binary-path=cmd/shortener/shortener \
                   -database-dsn='postgresql://shortener:my_super_password12345@localhost/shortener?sslmode=disable'
 
+increment12:
+	@shortenertest -test.v -test.run=^TestIteration12$$ \
+                  -binary-path=cmd/shortener/shortener \
+                  -database-dsn='postgresql://shortener:my_super_password12345@localhost/shortener?sslmode=disable'
+
 .DEFAULT_GOAL := build

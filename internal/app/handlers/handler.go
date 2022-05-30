@@ -13,6 +13,7 @@ import (
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
 	"github.com/iryzzh/practicum-go-shortener/internal/pkg/utils"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
@@ -66,12 +67,59 @@ func New(linkLen int, baseURL string, store store.Store) *Handler {
 
 	s.Route("/api", func(r chi.Router) {
 		r.Post("/shorten", s.shorten)
+		r.Post("/shorten/batch", s.batch)
 		r.Get("/user/urls", s.userUrls)
 	})
 
 	s.Get("/ping", s.Status)
 
 	return s
+}
+
+func (s *Handler) batch(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("content-type", "application/json")
+
+	var u []model.URL
+	var response []model.URL
+
+	b, err := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	err = json.Unmarshal(b, &u)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	for _, v := range u {
+		v.URLShort = utils.RandStringBytesMaskImprSrcUnsafe(s.LinkLen)
+
+		if err := s.Store.URL().Create(&v); err != nil {
+			s.fail(w, err)
+			return
+		}
+		response = append(response, model.URL{
+			CorrelationID: v.CorrelationID,
+			URLShort:      s.BaseURL + "/" + v.URLShort,
+		})
+	}
+
+	if len(response) > 0 {
+		w.Header().Set("content-type", "application/json")
+
+		w.WriteHeader(http.StatusCreated)
+
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			s.fail(w, err)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusInternalServerError)
 }
 
 func (s *Handler) Status(w http.ResponseWriter, r *http.Request) {
@@ -96,12 +144,7 @@ func (s *Handler) userUrls(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		type response struct {
-			ShortURL    string `json:"short_url"`
-			OriginalURL string `json:"original_url"`
-		}
-
-		var resp []response
+		var u []model.URL
 
 		urls, err := s.Store.URL().FindByUserID(user.ID)
 		if err != nil {
@@ -110,15 +153,15 @@ func (s *Handler) userUrls(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, v := range urls {
-			resp = append(resp, response{
-				ShortURL:    s.BaseURL + "/" + v.URLShort,
-				OriginalURL: v.URLOrigin,
+			u = append(u, model.URL{
+				URLShort:  s.BaseURL + "/" + v.URLShort,
+				URLOrigin: v.URLOrigin,
 			})
 		}
 
-		if len(resp) > 0 {
+		if len(u) > 0 {
 			w.Header().Set("content-type", "application/json")
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
+			if err := json.NewEncoder(w).Encode(u); err != nil {
 				s.fail(w, err)
 				return
 			}

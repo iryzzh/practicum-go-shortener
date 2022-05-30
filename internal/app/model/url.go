@@ -7,10 +7,11 @@ import (
 )
 
 type URL struct {
-	ID        int    `json:"id,omitempty"`
-	URLOrigin string `json:"url"`
-	URLShort  string `json:"url_short,omitempty"`
-	UserID    int    `json:"user_id,omitempty"`
+	ID            int    `json:"id,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+	URLOrigin     string `json:"original_url,omitempty"`
+	URLShort      string `json:"short_url,omitempty"`
+	UserID        int    `json:"user_id,omitempty"`
 }
 
 func (u *URL) Validate() error {
