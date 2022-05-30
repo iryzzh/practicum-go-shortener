@@ -12,6 +12,7 @@ type Config struct {
 	BaseURL         string `env:"BASE_URL" envDefault:"http://localhost:8080"`
 	URLLen          int    `env:"LINK_LEN" envDefault:"8"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
+	DatabaseDSN     string `env:"DATABASE_DSN"`
 }
 
 var once sync.Once
@@ -27,6 +28,7 @@ func New() (*Config, error) {
 		flag.StringVar(&cfg.BindAddress, "a", cfg.BindAddress, "bind address")
 		flag.StringVar(&cfg.BaseURL, "b", cfg.BaseURL, "base url")
 		flag.StringVar(&cfg.FileStoragePath, "f", cfg.FileStoragePath, "file storage path")
+		flag.StringVar(&cfg.DatabaseDSN, "d", cfg.DatabaseDSN, "database dsn")
 
 		flag.Parse()
 	})

@@ -69,7 +69,17 @@ func New(linkLen int, baseURL string, store store.Store) *Handler {
 		r.Get("/user/urls", s.userUrls)
 	})
 
+	s.Get("/ping", s.Status)
+
 	return s
+}
+
+func (s *Handler) Status(w http.ResponseWriter, r *http.Request) {
+	if err := s.Store.Ping(); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Handler) userUrls(w http.ResponseWriter, r *http.Request) {

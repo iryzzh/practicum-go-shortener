@@ -31,3 +31,7 @@ func (s *Store) URL() store.URLRepository {
 func (s *Store) User() store.UserRepository {
 	return &UserRepository{store: s}
 }
+
+func (s *Store) Ping() error {
+	return nil
+}

@@ -2,17 +2,20 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"github.com/iryzzh/practicum-go-shortener/cmd/shortener/config"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/handlers"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/server"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store/filestore"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store/memstore"
+	"github.com/iryzzh/practicum-go-shortener/internal/app/store/sqlstore"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
+	_ "github.com/lib/pq"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -32,6 +35,14 @@ func main() {
 		var file *os.File
 		s, file = filestore.New(cfg.FileStoragePath)
 		defer file.Close()
+	case cfg.DatabaseDSN != "":
+		db, err := openDB(cfg.DatabaseDSN)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer db.Close()
+
+		s = sqlstore.New(db)
 	default:
 		s = memstore.New()
 	}
@@ -47,4 +58,13 @@ func main() {
 	if err := g.Wait(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func openDB(dsn string) (*sql.DB, error) {
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	return db, db.Ping()
 }
