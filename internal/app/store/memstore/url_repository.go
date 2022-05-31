@@ -9,16 +9,23 @@ type URLRepository struct {
 	store *Store
 }
 
-func (r *URLRepository) Create(u *model.URL) error {
+func (r *URLRepository) Create(url *model.URL) error {
 	r.store.Lock()
 	defer r.store.Unlock()
-	if err := u.Validate(); err != nil {
+	if err := url.Validate(); err != nil {
 		return err
 	}
 
-	u.ID = r.store.urlNextID + 1
+	for _, v := range r.store.urls {
+		if url.URLOrigin == v.URLOrigin {
+			*url = *v
+			return store.ErrURLExist
+		}
+	}
 
-	r.store.urls[r.store.urlNextID] = u
+	url.ID = r.store.urlNextID + 1
+
+	r.store.urls[r.store.urlNextID] = url
 	r.store.urlNextID++
 
 	return nil

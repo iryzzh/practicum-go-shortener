@@ -82,20 +82,20 @@ func (s *Handler) batch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "application/json")
 
 	b, err := ioutil.ReadAll(r.Body)
-	defer r.Body.Close()
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
+	defer r.Body.Close()
 
-	type response struct {
+	type data struct {
 		CorrelationID string `json:"correlation_id"`
 		OriginalURL   string `json:"original_url,omitempty"`
 		ShortURL      string `json:"short_url,omitempty"`
 	}
 
-	var r1 []response
-	var r2 []response
+	var r1 []data
+	var r2 []data
 
 	err = json.Unmarshal(b, &r1)
 	if err != nil {
@@ -113,7 +113,7 @@ func (s *Handler) batch(w http.ResponseWriter, r *http.Request) {
 			s.fail(w, err)
 			return
 		}
-		r2 = append(r2, response{
+		r2 = append(r2, data{
 			CorrelationID: v.CorrelationID,
 			ShortURL:      s.BaseURL + "/" + shortURL,
 		})
@@ -229,7 +229,15 @@ func (s *Handler) shorten(w http.ResponseWriter, r *http.Request) {
 	}
 
 	url.URLShort = utils.RandStringBytesMaskImprSrcUnsafe(s.LinkLen)
-	if err := s.Store.URL().Create(url); err != nil {
+
+	err = s.Store.URL().Create(url)
+	if errors.Is(err, store.ErrURLExist) {
+		encodeJSON(w, http.StatusConflict, map[string]interface{}{
+			"result": s.BaseURL + "/" + url.URLShort,
+		})
+		return
+	}
+	if err != nil {
 		s.fail(w, err)
 		return
 	}
@@ -239,12 +247,14 @@ func (s *Handler) shorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := map[string]interface{}{
+	encodeJSON(w, http.StatusCreated, map[string]interface{}{
 		"result": s.BaseURL + "/" + url.URLShort,
-	}
+	})
+}
 
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
+func encodeJSON(w http.ResponseWriter, statusCode int, data interface{}) {
+	w.WriteHeader(statusCode)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
 		log.Panic(err)
 	}
 }
@@ -287,6 +297,8 @@ func RedirectHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("content-type", "text/plain")
+
 	p := strings.Replace(r.URL.Path, "/", "", -1)
 	if len(p) > 0 {
 		s.fail(w, nil)
@@ -304,7 +316,12 @@ func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
 		URLShort:  utils.RandStringBytesMaskImprSrcUnsafe(s.LinkLen),
 	}
 
-	if err := s.Store.URL().Create(url); err != nil {
+	err = s.Store.URL().Create(url)
+	if errors.Is(err, store.ErrURLExist) {
+		basicResponse(w, http.StatusConflict, []byte(s.BaseURL+"/"+url.URLShort))
+		return
+	}
+	if err != nil {
 		s.fail(w, err)
 		return
 	}
@@ -314,11 +331,12 @@ func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := s.BaseURL + "/" + url.URLShort
+	basicResponse(w, http.StatusCreated, []byte(s.BaseURL+"/"+url.URLShort))
+}
 
-	w.Header().Set("content-type", "text/plain")
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(resp))
+func basicResponse(w http.ResponseWriter, statusCode int, body []byte) {
+	w.WriteHeader(statusCode)
+	w.Write(body)
 }
 
 func (s *Handler) fail(w http.ResponseWriter, e error) {

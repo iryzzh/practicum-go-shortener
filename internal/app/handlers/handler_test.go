@@ -6,6 +6,7 @@ import (
 	"github.com/iryzzh/practicum-go-shortener/cmd/shortener/config"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/handlers"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
+	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store/memstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,27 +16,34 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"path"
 	"strings"
 	"testing"
 )
 
-func newTestServer(handler http.Handler, address string) *httptest.Server {
-	l, err := net.Listen("tcp", address)
+func newTestServer(st store.Store) (*httptest.Server, error) {
+	cfg, err := config.New()
+	if err != nil {
+		return nil, err
+	}
+
+	l, err := net.Listen("tcp", cfg.BindAddress)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	handler := handlers.New(cfg.URLLen, cfg.BaseURL, st)
 
 	ts := httptest.NewUnstartedServer(handler)
 	ts.Listener.Close()
 	ts.Listener = l
 
 	ts.Start()
-	return ts
+
+	return ts, nil
 }
 
-func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io.Reader) (*http.Response, string) {
-	req, err := http.NewRequest(method, ts.URL+path, body)
+func testRequest(t *testing.T, method, path string, body io.Reader) (*http.Response, string) {
+	req, err := http.NewRequest(method, path, body)
 	require.NoError(t, err)
 
 	client := &http.Client{
@@ -50,17 +58,13 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io
 	respBody, err := ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	defer resp.Body.Close()
-
 	return resp, string(respBody)
 }
 
 func TestHandler_Get(t *testing.T) {
 	st := memstore.New()
 	url := model.TestURL(t)
-	st.URL().Create(url)
-	cfg, err := config.New()
-	if err != nil {
+	if err := st.URL().Create(url); err != nil {
 		t.Fatal(err)
 	}
 
@@ -97,14 +101,16 @@ func TestHandler_Get(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := handlers.New(cfg.URLLen, cfg.BaseURL, st)
-			ts := newTestServer(handler, cfg.BindAddress)
+			ts, err := newTestServer(st)
+			if err != nil {
+				t.Fatal(err)
+			}
 			defer ts.Close()
 
-			resp, _ := testRequest(t, ts, "GET", "/"+tt.params.id, nil)
+			resp, _ := testRequest(t, "GET", ts.URL+"/"+tt.params.id, nil)
 			defer resp.Body.Close() // CI go vet
 
-			assert.Equal(t, resp.StatusCode, tt.want.code)
+			assert.Equal(t, tt.want.code, resp.StatusCode)
 			assert.Equal(t, resp.Header.Get("Location"), tt.want.location)
 		})
 	}
@@ -112,86 +118,73 @@ func TestHandler_Get(t *testing.T) {
 
 func TestHandler_Post(t *testing.T) {
 	st := memstore.New()
-	cfg, err := config.New()
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	type params struct {
-		body   string
-		target string
-	}
 	type want struct {
 		code int
 	}
 	tests := []struct {
-		name   string
-		params params
-		want   want
+		name string
+		want want
+		body string
 	}{
 		{
 			name: "Post valid url",
 			want: want{http.StatusCreated},
-			params: params{
-				body:   "https://example.com",
-				target: "/",
-			},
+			body: "https://example.com",
 		},
 		{
 			name: "Post invalid url #1",
 			want: want{http.StatusBadRequest},
-			params: params{
-				body:   "httsp://ya.ru",
-				target: "/",
-			},
+			body: "httsp://ya.ru",
 		},
 		{
 			name: "Post invalid url #2",
 			want: want{http.StatusBadRequest},
-			params: params{
-				body:   "y\\a.ru",
-				target: "/",
-			},
+			body: "httsp://ya.ru",
 		},
 		{
 			name: "Post invalid url #3",
 			want: want{http.StatusBadRequest},
-			params: params{
-				body:   "y\\a.ru",
-				target: "/invalid/path",
-			},
+			body: "httsp://ya.ru",
+		},
+		{
+			name: "Post conflict",
+			want: want{http.StatusConflict},
+			body: model.TestURL(t).URLOrigin,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := handlers.New(cfg.URLLen, cfg.BaseURL, st)
-			ts := newTestServer(handler, cfg.BindAddress)
+			if tt.want.code == http.StatusConflict {
+				if err := st.URL().Create(model.TestURL(t)); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			ts, err := newTestServer(st)
+			if err != nil {
+				t.Fatal(err)
+			}
 			defer ts.Close()
 
-			body := strings.NewReader(tt.params.body)
-			r, b := testRequest(t, ts, "POST", "/", body)
-			defer r.Body.Close() // CI go vet
+			body := strings.NewReader(tt.body)
+			r, b := testRequest(t, "POST", ts.URL, body)
+			defer r.Body.Close()
 
-			assert.Equal(t, r.StatusCode, tt.want.code)
-			assert.Condition(t, func() bool {
-				if r.StatusCode == http.StatusBadRequest {
-					return true
-				}
-				assert.True(t, strings.HasPrefix(b, cfg.BaseURL))
-				return assert.Equal(t, cfg.URLLen, len(path.Base(b)))
-			})
+			assert.Equal(t, tt.want.code, r.StatusCode)
+
+			if r.StatusCode != http.StatusBadRequest {
+				result, _ := testRequest(t, "GET", b, nil)
+				assert.Equal(t, tt.body, result.Header.Get("location"))
+			}
 		})
 	}
 }
 
-func TestHandler_API_Post(t *testing.T) {
-	endpoint := "/api/shorten"
+func TestHandler_API_Shorten_Post(t *testing.T) {
 	st := memstore.New()
-	cfg, err := config.New()
-	if err != nil {
-		t.Fatal(err)
-	}
+	endpoint := "/api/shorten"
 
 	type Response struct {
 		Result string `json:"result"`
@@ -217,34 +210,130 @@ func TestHandler_API_Post(t *testing.T) {
 			body:           map[string]interface{}{"url": "http:\\wrong.com"},
 			wantStatusCode: http.StatusBadRequest,
 		},
+		{
+			name:           "test conflict",
+			body:           map[string]interface{}{"url": model.TestURL(t).URLOrigin},
+			wantStatusCode: http.StatusConflict,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := handlers.New(cfg.URLLen, cfg.BaseURL, st)
-			ts := newTestServer(handler, cfg.BindAddress)
+			if tt.wantStatusCode == http.StatusConflict {
+				if err := st.URL().Create(model.TestURL(t)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ts, err := newTestServer(st)
+			if err != nil {
+				t.Fatal(err)
+			}
 			defer ts.Close()
 
 			body, _ := json.Marshal(tt.body)
-			r, b := testRequest(t, ts, "POST", endpoint, bytes.NewReader(body))
+			r, b := testRequest(t, "POST", ts.URL+endpoint, bytes.NewReader(body))
 			defer r.Body.Close()
 
 			assert.Equal(t, tt.wantStatusCode, r.StatusCode)
-			assert.Condition(t, func() bool {
-				if r.StatusCode == http.StatusBadRequest {
-					return true
-				}
 
-				var resp Response
-				if err := json.Unmarshal([]byte(b), &resp); err != nil {
-					t.Fatal(err)
-				}
+			if r.StatusCode == http.StatusBadRequest {
+				return
+			}
 
-				assert.True(t, r.Header.Get("content-type") == "application/json")
+			assert.True(t, r.Header.Get("content-type") == "application/json")
 
-				assert.True(t, strings.Contains(resp.Result, cfg.BaseURL))
-				return assert.Equal(t, cfg.URLLen, len(path.Base(resp.Result)))
-			})
+			var resp Response
+			if err := json.Unmarshal([]byte(b), &resp); err != nil {
+				t.Fatal(err)
+			}
+
+			result, _ := testRequest(t, "GET", resp.Result, nil)
+
+			assert.Equal(t, tt.body["url"].(string), result.Header.Get("location"))
+		})
+	}
+}
+
+func TestHandler_API_Shorten_Batch(t *testing.T) {
+	st := memstore.New()
+	endpoint := "/api/shorten/batch"
+	_ = endpoint
+
+	type Request []struct {
+		CorrelationID string `json:"correlation_id"`
+		OriginalURL   string `json:"original_url"`
+	}
+
+	type Response []struct {
+		CorrelationID string `json:"correlation_id"`
+		ShortURL      string `json:"short_url"`
+	}
+
+	tests := []struct {
+		name           string
+		body           Request
+		wantStatusCode int
+	}{
+		{
+			name: "test correct batch",
+			body: Request{
+				{
+					CorrelationID: "a57024fe-3ffe-494b-a85f-9496cdc09ae6",
+					OriginalURL:   "http://wixbzuqq.yandex/whlbtt0uq0/ytutnpencn839",
+				},
+				{
+					CorrelationID: "b24dc7d3-2a22-4741-bc55-b29bce02696d",
+					OriginalURL:   "http://vbeexc.ru/eitl9fupmfn/ciucbp8kc4iuf",
+				},
+			},
+			wantStatusCode: http.StatusCreated,
+		},
+		{
+			name: "test incorrect batch",
+			body: Request{
+				{
+					CorrelationID: "a57024fe-3ffe-494b-a85f-9496cdc09ae6",
+					OriginalURL:   "http://wrong",
+				},
+				{
+					CorrelationID: "b24dc7d3-2a22-4741-bc55-b29bce02696d",
+					OriginalURL:   "http://vbeexc.ru/eitl9fupmfn/ciucbp8kc4iuf",
+				},
+			},
+			wantStatusCode: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts, err := newTestServer(st)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer ts.Close()
+			body, _ := json.Marshal(tt.body)
+			r, b := testRequest(t, "POST", ts.URL+endpoint, bytes.NewReader(body))
+			defer r.Body.Close()
+
+			assert.Equal(t, tt.wantStatusCode, r.StatusCode)
+
+			if r.StatusCode == http.StatusBadRequest {
+				return
+			}
+
+			assert.True(t, r.Header.Get("content-type") == "application/json")
+
+			var resp Response
+			if err := json.Unmarshal([]byte(b), &resp); err != nil {
+				t.Fatal(err)
+			}
+
+			for i, v := range resp {
+				assert.Equal(t, tt.body[i].CorrelationID, v.CorrelationID)
+
+				result, _ := testRequest(t, "GET", v.ShortURL, nil)
+				assert.Equal(t, result.Header.Get("location"), tt.body[i].OriginalURL)
+			}
 		})
 	}
 }

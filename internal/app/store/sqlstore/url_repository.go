@@ -10,21 +10,37 @@ type URLRepository struct {
 	store *Store
 }
 
-func (r *URLRepository) Create(u *model.URL) error {
-	if err := u.Validate(); err != nil {
+func (r *URLRepository) Create(url *model.URL) error {
+	if err := url.Validate(); err != nil {
 		return err
 	}
 
-	if url, _ := r.store.URL().FindByUUID(u.URLShort); url != nil {
-		u.ID = url.ID
-		return nil
+	shortURL := url.URLShort
+
+	err := r.store.db.QueryRow(
+		`WITH e AS (
+    INSERT INTO urls ("original_url", "short_url")
+        VALUES ($1, $2)
+        ON CONFLICT ("original_url") DO NOTHING
+        RETURNING "url_id", "short_url")
+	SELECT *
+	FROM e
+	UNION
+	SELECT "url_id", "short_url"
+	FROM urls
+	WHERE "original_url" = $1;`,
+		url.URLOrigin,
+		url.URLShort,
+	).Scan(&url.ID, &url.URLShort)
+	if err != nil {
+		return err
 	}
 
-	return r.store.db.QueryRow(
-		"INSERT INTO urls (short_url, original_url) VALUES ($1, $2) RETURNING url_id",
-		u.URLShort,
-		u.URLOrigin,
-	).Scan(&u.ID)
+	if shortURL != url.URLShort {
+		return store.ErrURLExist
+	}
+
+	return nil
 }
 
 func (r *URLRepository) FindByID(id int) (*model.URL, error) {

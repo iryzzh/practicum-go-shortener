@@ -10,22 +10,29 @@ type URLRepository struct {
 	store *Store
 }
 
-func (r *URLRepository) Create(u *model.URL) error {
-	if err := u.Validate(); err != nil {
+func (r *URLRepository) Create(url *model.URL) error {
+	if err := url.Validate(); err != nil {
 		return err
 	}
 
-	if url, _ := r.store.URL().FindByUUID(u.URLShort); url != nil {
-		u.ID = url.ID
-		return nil
+	urls, err := r.store.ReadUrls()
+	if err != nil {
+		return err
+	}
+
+	for _, v := range urls {
+		if url.URLOrigin == v.URLOrigin {
+			*url = v
+			return store.ErrURLExist
+		}
 	}
 
 	r.store.Lock()
-	u.ID = r.store.nextUrlID + 1
+	url.ID = r.store.nextUrlID + 1
 	r.store.nextUrlID++
 	r.store.Unlock()
 
-	data, err := json.Marshal(&u)
+	data, err := json.Marshal(&url)
 	if err != nil {
 		return err
 	}
