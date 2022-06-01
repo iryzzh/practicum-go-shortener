@@ -89,48 +89,40 @@ func (s *Handler) batch(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	type data struct {
-		CorrelationID string `json:"correlation_id"`
-		OriginalURL   string `json:"original_url,omitempty"`
-		ShortURL      string `json:"short_url,omitempty"`
+		CorrelationID string  `json:"correlation_id"`
+		OriginalURL   *string `json:"original_url,omitempty"`
+		ShortURL      *string `json:"short_url,omitempty"`
 	}
 
-	var r1 []data
-	var r2 []data
+	var result []data
 
-	err = json.Unmarshal(b, &r1)
+	err = json.Unmarshal(b, &result)
 	if err != nil {
 		s.fail(w, err)
-		return
 	}
 
-	for _, v := range r1 {
+	for i, v := range result {
 		shortURL := utils.RandStringBytesMaskImprSrcUnsafe(s.LinkLen)
 
 		if err := s.Store.URL().Create(&model.URL{
-			URLOrigin: v.OriginalURL,
+			URLOrigin: *v.OriginalURL,
 			URLShort:  shortURL,
 		}); err != nil {
 			s.fail(w, err)
 			return
 		}
-		r2 = append(r2, data{
-			CorrelationID: v.CorrelationID,
-			ShortURL:      s.BaseURL + "/" + shortURL,
-		})
+
+		str := s.BaseURL + "/" + shortURL
+		result[i].OriginalURL = nil
+		result[i].ShortURL = &str
 	}
 
-	if len(r2) > 0 {
-		w.Header().Set("content-type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 
-		w.WriteHeader(http.StatusCreated)
-
-		if err := json.NewEncoder(w).Encode(r2); err != nil {
-			s.fail(w, err)
-			return
-		}
+	if err := json.NewEncoder(w).Encode(result); err != nil {
+		s.fail(w, err)
+		return
 	}
-
-	w.WriteHeader(http.StatusInternalServerError)
 }
 
 func (s *Handler) Status(w http.ResponseWriter, r *http.Request) {
@@ -146,11 +138,11 @@ func (s *Handler) userUrls(w http.ResponseWriter, r *http.Request) {
 
 	if session.Values["uuid"] != nil {
 		user, err := s.Store.User().FindByUUID(session.Values["uuid"].(string))
+		if errors.Is(err, store.ErrUserNotFound) {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		if err != nil {
-			if err == store.ErrUserNotFound {
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
 			s.fail(w, err)
 			return
 		}
