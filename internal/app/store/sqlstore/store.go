@@ -13,8 +13,13 @@ type Store struct {
 	db *sql.DB
 }
 
-func New(db *sql.DB) *Store {
-	s := &Store{
+func New(dsn string) (s *Store, err error) {
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	s = &Store{
 		db: db,
 	}
 
@@ -22,7 +27,11 @@ func New(db *sql.DB) *Store {
 		log.Fatal(err)
 	}
 
-	return s
+	return s, db.Ping()
+}
+
+func (s *Store) Close() error {
+	return s.db.Close()
 }
 
 func (s *Store) migrate() error {

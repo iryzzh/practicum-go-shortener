@@ -1,7 +1,6 @@
 package filestore
 
 import (
-	"encoding/json"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
 )

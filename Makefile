@@ -7,7 +7,7 @@ test:
 	@go test -v -race -timeout 30s ./...
 
 shortenertest: build increment1 increment2 increment3 increment4 increment5 increment6 increment7 increment8 \
-	increment9 increment10 increment11
+	increment9 increment10 increment11 increment12 increment13
 
 increment1:
 	@shortenertest -test.v -test.run=^TestIteration1$$ \

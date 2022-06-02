@@ -14,8 +14,11 @@ var (
 )
 
 func TestURLRepository(t *testing.T) {
-	st, file := filestore.New(filepath)
-	defer file.Close()
+	st, err := filestore.New(filepath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
 
 	url := model.TestURL(t)
 	user := model.TestUser(t)

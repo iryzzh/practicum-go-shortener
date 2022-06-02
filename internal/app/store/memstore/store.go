@@ -15,6 +15,10 @@ type Store struct {
 	userNextID int
 }
 
+func (s *Store) Close() error {
+	return nil
+}
+
 func New() *Store {
 	return &Store{
 		urls:       make(map[int]*model.URL),

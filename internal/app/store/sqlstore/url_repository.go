@@ -2,6 +2,7 @@ package sqlstore
 
 import (
 	"database/sql"
+	"errors"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
 )
@@ -46,18 +47,18 @@ func (r *URLRepository) Create(url *model.URL) error {
 func (r *URLRepository) FindByID(id int) (*model.URL, error) {
 	u := &model.URL{}
 
-	if err := r.store.db.QueryRow(
+	err := r.store.db.QueryRow(
 		"SELECT url_id, short_url, original_url FROM urls WHERE url_id = $1",
 		id,
 	).Scan(
 		&u.ID,
 		&u.URLShort,
 		&u.URLOrigin,
-	); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, store.ErrRecordNotFound
-		}
-
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, store.ErrRecordNotFound
+	}
+	if err != nil {
 		return nil, err
 	}
 
@@ -67,18 +68,18 @@ func (r *URLRepository) FindByID(id int) (*model.URL, error) {
 func (r *URLRepository) FindByUUID(uuid string) (*model.URL, error) {
 	u := &model.URL{}
 
-	if err := r.store.db.QueryRow(
+	err := r.store.db.QueryRow(
 		"SELECT url_id, short_url, original_url FROM urls WHERE short_url = $1",
 		uuid,
 	).Scan(
 		&u.ID,
 		&u.URLShort,
 		&u.URLOrigin,
-	); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, store.ErrRecordNotFound
-		}
-
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, store.ErrRecordNotFound
+	}
+	if err != nil {
 		return nil, err
 	}
 
