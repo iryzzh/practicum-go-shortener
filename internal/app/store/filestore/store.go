@@ -1,13 +1,17 @@
 package filestore
 
 import (
-	"encoding/json"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
+	"github.com/json-iterator/go"
 	"io"
 	"log"
 	"os"
 	"sync"
+)
+
+var (
+	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 type Store struct {
@@ -18,10 +22,14 @@ type Store struct {
 	fileData       File
 }
 
-func New(filepath string) (*Store, *os.File) {
+func (s *Store) Close() error {
+	return s.fileDescriptor.Close()
+}
+
+func New(filepath string) (*Store, error) {
 	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0777)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	s := &Store{
@@ -32,7 +40,7 @@ func New(filepath string) (*Store, *os.File) {
 
 	s.startup()
 
-	return s, file
+	return s, nil
 }
 
 func (s *Store) startup() {
@@ -69,8 +77,8 @@ func (s *Store) startup() {
 }
 
 type File struct {
-	Type string          `json:"type"`
-	Data json.RawMessage `json:"data"`
+	Type string              `json:"type"`
+	Data jsoniter.RawMessage `json:"data"`
 }
 
 func (s *Store) Write(data []byte, dataType ...string) error {
@@ -82,7 +90,7 @@ func (s *Store) Write(data []byte, dataType ...string) error {
 	}
 
 	f := &File{
-		Data: json.RawMessage(data),
+		Data: jsoniter.RawMessage(data),
 		Type: dt,
 	}
 
