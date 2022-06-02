@@ -8,11 +8,13 @@ import (
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store/filestore"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store/memstore"
+	"github.com/iryzzh/practicum-go-shortener/internal/app/store/sqlstore"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
+	_ "github.com/lib/pq"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -29,12 +31,18 @@ func main() {
 
 	switch {
 	case cfg.FileStoragePath != "":
-		var file *os.File
-		s, file = filestore.New(cfg.FileStoragePath)
-		defer file.Close()
+		s, err = filestore.New(cfg.FileStoragePath)
+	case cfg.DatabaseDSN != "":
+		s, err = sqlstore.New(cfg.DatabaseDSN)
 	default:
 		s = memstore.New()
 	}
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer s.Close()
 
 	handler := handlers.New(cfg.URLLen, cfg.BaseURL, s)
 	srv := server.New(cfg.Network, cfg.BindAddress, handler)

@@ -6,7 +6,8 @@ build:
 test:
 	@go test -v -race -timeout 30s ./...
 
-shortenertest: build increment1 increment2 increment3 increment4 increment5 increment6 increment7 increment8
+shortenertest: build increment1 increment2 increment3 increment4 increment5 increment6 increment7 increment8 \
+	increment9 increment10 increment11 increment12 increment13
 
 increment1:
 	@shortenertest -test.v -test.run=^TestIteration1$$ \
@@ -51,5 +52,31 @@ increment8:
 	@shortenertest -test.v -test.run=^TestIteration8$$ \
 		-source-path=. \
 		-binary-path=cmd/shortener/shortener
+
+increment9:
+	@shortenertest -test.v -test.run=^TestIteration9$$ \
+		-source-path=. \
+		-binary-path=cmd/shortener/shortener
+
+increment10:
+	@shortenertest -test.v -test.run=^TestIteration10$$ \
+                  -source-path=. \
+                  -binary-path=cmd/shortener/shortener \
+                  -database-dsn='postgresql://shortener:my_super_password12345@localhost/shortener?sslmode=disable'
+
+increment11:
+	@shortenertest -test.v -test.run=^TestIteration11$$ \
+                  -binary-path=cmd/shortener/shortener \
+                  -database-dsn='postgresql://shortener:my_super_password12345@localhost/shortener?sslmode=disable'
+
+increment12:
+	@shortenertest -test.v -test.run=^TestIteration12$$ \
+                  -binary-path=cmd/shortener/shortener \
+                  -database-dsn='postgresql://shortener:my_super_password12345@localhost/shortener?sslmode=disable'
+
+increment13:
+	@shortenertest -test.v -test.run=^TestIteration13$$ \
+                  -binary-path=cmd/shortener/shortener \
+                  -database-dsn='postgresql://shortener:my_super_password12345@localhost/shortener?sslmode=disable'
 
 .DEFAULT_GOAL := build

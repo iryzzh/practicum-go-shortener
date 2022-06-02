@@ -10,8 +10,7 @@ type URL struct {
 	ID        int    `json:"id,omitempty"`
 	URLOrigin string `json:"url"`
 	URLShort  string `json:"url_short,omitempty"`
-	Visited   bool   `json:"visited,omitempty"`
-	Count     int    `json:"count,omitempty"`
+	UserID    int    `json:"user_id,omitempty"`
 }
 
 func (u *URL) Validate() error {
