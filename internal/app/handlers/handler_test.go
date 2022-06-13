@@ -352,16 +352,19 @@ func TestHandler_API_User_Urls_Delete(t *testing.T) {
 	endpoint := "/api/user/urls"
 
 	tests := []struct {
-		name       string
-		sameCookie bool
+		name           string
+		sameCookie     bool
+		wantStatusCode int
 	}{
 		{
-			name:       "deleting belonging records",
-			sameCookie: true,
+			name:           "deleting belonging records",
+			sameCookie:     true,
+			wantStatusCode: http.StatusGone,
 		},
 		{
-			name:       "deleting not belonging records",
-			sameCookie: false,
+			name:           "deleting not belonging records",
+			sameCookie:     false,
+			wantStatusCode: http.StatusTemporaryRedirect,
 		},
 	}
 
@@ -405,7 +408,7 @@ func TestHandler_API_User_Urls_Delete(t *testing.T) {
 
 			for _, v := range values {
 				response, _ := testRequest(t, "GET", ts.URL+"/"+v, nil, nil)
-				assert.Equal(t, http.StatusGone, response.StatusCode)
+				assert.Equal(t, tt.wantStatusCode, response.StatusCode)
 			}
 		})
 	}
