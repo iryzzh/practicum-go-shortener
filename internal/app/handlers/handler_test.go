@@ -15,7 +15,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -31,7 +33,7 @@ func newTestServer(st store.Store) (*httptest.Server, error) {
 		log.Fatal(err)
 	}
 
-	handler := handlers.New(cfg.URLLen, cfg.BaseURL, st)
+	handler := handlers.New(cfg.URLLen, cfg.BaseURL, st, []byte(cfg.SessionKey))
 
 	ts := httptest.NewUnstartedServer(handler)
 	ts.Listener.Close()
@@ -42,14 +44,22 @@ func newTestServer(st store.Store) (*httptest.Server, error) {
 	return ts, nil
 }
 
-func testRequest(t *testing.T, method, path string, body io.Reader) (*http.Response, string) {
+func testRequest(t *testing.T, method, path string, body io.Reader, jar *cookiejar.Jar) (*http.Response, string) {
 	req, err := http.NewRequest(method, path, body)
 	require.NoError(t, err)
+
+	if jar == nil {
+		jar, err = cookiejar.New(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
+		Jar: jar,
 	}
 
 	resp, err := client.Do(req)
@@ -107,7 +117,7 @@ func TestHandler_Get(t *testing.T) {
 			}
 			defer ts.Close()
 
-			resp, _ := testRequest(t, "GET", ts.URL+"/"+tt.params.id, nil)
+			resp, _ := testRequest(t, "GET", ts.URL+"/"+tt.params.id, nil, nil)
 			defer resp.Body.Close() // CI go vet
 
 			assert.Equal(t, tt.want.code, resp.StatusCode)
@@ -169,13 +179,13 @@ func TestHandler_Post(t *testing.T) {
 			defer ts.Close()
 
 			body := strings.NewReader(tt.body)
-			r, b := testRequest(t, "POST", ts.URL, body)
+			r, b := testRequest(t, "POST", ts.URL, body, nil)
 			defer r.Body.Close()
 
 			assert.Equal(t, tt.want.code, r.StatusCode)
 
 			if r.StatusCode != http.StatusBadRequest {
-				result, _ := testRequest(t, "GET", b, nil)
+				result, _ := testRequest(t, "GET", b, nil, nil)
 				assert.Equal(t, tt.body, result.Header.Get("location"))
 			}
 		})
@@ -231,7 +241,7 @@ func TestHandler_API_Shorten_Post(t *testing.T) {
 			defer ts.Close()
 
 			body, _ := json.Marshal(tt.body)
-			r, b := testRequest(t, "POST", ts.URL+endpoint, bytes.NewReader(body))
+			r, b := testRequest(t, "POST", ts.URL+endpoint, bytes.NewReader(body), nil)
 			defer r.Body.Close()
 
 			assert.Equal(t, tt.wantStatusCode, r.StatusCode)
@@ -247,7 +257,7 @@ func TestHandler_API_Shorten_Post(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			result, _ := testRequest(t, "GET", resp.Result, nil)
+			result, _ := testRequest(t, "GET", resp.Result, nil, nil)
 
 			assert.Equal(t, tt.body["url"].(string), result.Header.Get("location"))
 		})
@@ -257,7 +267,6 @@ func TestHandler_API_Shorten_Post(t *testing.T) {
 func TestHandler_API_Shorten_Batch(t *testing.T) {
 	st := memstore.New()
 	endpoint := "/api/shorten/batch"
-	_ = endpoint
 
 	type Request []struct {
 		CorrelationID string `json:"correlation_id"`
@@ -312,7 +321,7 @@ func TestHandler_API_Shorten_Batch(t *testing.T) {
 			}
 			defer ts.Close()
 			body, _ := json.Marshal(tt.body)
-			r, b := testRequest(t, "POST", ts.URL+endpoint, bytes.NewReader(body))
+			r, b := testRequest(t, "POST", ts.URL+endpoint, bytes.NewReader(body), nil)
 			defer r.Body.Close()
 
 			assert.Equal(t, tt.wantStatusCode, r.StatusCode)
@@ -331,8 +340,72 @@ func TestHandler_API_Shorten_Batch(t *testing.T) {
 			for i, v := range resp {
 				assert.Equal(t, tt.body[i].CorrelationID, v.CorrelationID)
 
-				result, _ := testRequest(t, "GET", v.ShortURL, nil)
+				result, _ := testRequest(t, "GET", v.ShortURL, nil, nil)
 				assert.Equal(t, result.Header.Get("location"), tt.body[i].OriginalURL)
+			}
+		})
+	}
+}
+
+func TestHandler_API_User_Urls_Delete(t *testing.T) {
+	st := memstore.New()
+	endpoint := "/api/user/urls"
+
+	tests := []struct {
+		name       string
+		sameCookie bool
+	}{
+		{
+			name:       "deleting belonging records",
+			sameCookie: true,
+		},
+		{
+			name:       "deleting not belonging records",
+			sameCookie: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts, err := newTestServer(st)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer ts.Close()
+
+			var jar *cookiejar.Jar
+
+			if tt.sameCookie {
+				jar, err = cookiejar.New(nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			var values []string
+			for i := 0; i < 5; i++ {
+				url := model.TestURLGenerated(t)
+
+				res, body := testRequest(t, "POST", ts.URL, strings.NewReader(url.URLOrigin), jar)
+
+				if res.StatusCode != http.StatusCreated {
+					t.Fatalf("request error: %v", err)
+				}
+
+				values = append(values, filepath.Base(body))
+			}
+
+			valuesJSON, err := json.Marshal(values)
+			if err != nil {
+				t.Fatal(err)
+			}
+			response, _ := testRequest(t, "DELETE", ts.URL+endpoint, bytes.NewReader(valuesJSON), jar)
+
+			assert.Equal(t, http.StatusAccepted, response.StatusCode)
+
+			for _, v := range values {
+				response, _ := testRequest(t, "GET", ts.URL+"/"+v, nil, nil)
+				assert.Equal(t, http.StatusGone, response.StatusCode)
 			}
 		})
 	}

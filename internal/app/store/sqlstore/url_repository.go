@@ -5,10 +5,23 @@ import (
 	"errors"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
+	"github.com/lib/pq"
 )
 
 type URLRepository struct {
 	store *Store
+}
+
+func (r *URLRepository) BatchDelete(ids []int) error {
+	_, err := r.store.db.Exec(`UPDATE urls SET is_deleted = true WHERE url_id = ANY($1::int[]);`, pq.Array(ids))
+
+	return err
+}
+
+func (r *URLRepository) Delete(url *model.URL) error {
+	_, err := r.store.db.Exec(`UPDATE urls SET is_deleted = true WHERE url_id = $1`, url.ID)
+
+	return err
 }
 
 func (r *URLRepository) Create(url *model.URL) error {
@@ -69,12 +82,14 @@ func (r *URLRepository) FindByUUID(uuid string) (*model.URL, error) {
 	u := &model.URL{}
 
 	err := r.store.db.QueryRow(
-		"SELECT url_id, short_url, original_url FROM urls WHERE short_url = $1",
+		"SELECT url_id, user_id, original_url, short_url, is_deleted FROM urls WHERE short_url = $1",
 		uuid,
 	).Scan(
 		&u.ID,
-		&u.URLShort,
+		&u.UserID,
 		&u.URLOrigin,
+		&u.URLShort,
+		&u.IsDeleted,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, store.ErrRecordNotFound
@@ -90,7 +105,7 @@ func (r *URLRepository) FindByUserID(id int) ([]*model.URL, error) {
 	var urls []*model.URL
 
 	rows, err := r.store.db.Query(
-		"SELECT * from urls where user_id = $1",
+		"SELECT url_id, user_id, original_url, short_url, is_deleted from urls where user_id = $1",
 		id)
 	if err != nil {
 		return nil, err
@@ -99,7 +114,7 @@ func (r *URLRepository) FindByUserID(id int) ([]*model.URL, error) {
 
 	for rows.Next() {
 		var url model.URL
-		if err := rows.Scan(&url.ID, &url.UserID, &url.URLOrigin, &url.URLShort); err != nil {
+		if err := rows.Scan(&url.ID, &url.UserID, &url.URLOrigin, &url.URLShort, &url.IsDeleted); err != nil {
 			return nil, err
 		}
 

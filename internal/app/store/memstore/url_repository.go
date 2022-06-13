@@ -9,6 +9,30 @@ type URLRepository struct {
 	store *Store
 }
 
+func (r *URLRepository) BatchDelete(ids []int) error {
+	r.store.Lock()
+	defer r.store.Unlock()
+
+	for i, v := range r.store.urls {
+		for _, k := range ids {
+			if k == v.ID {
+				r.store.urls[i].IsDeleted = true
+			}
+		}
+	}
+
+	return nil
+}
+
+func (r *URLRepository) Delete(url *model.URL) error {
+	r.store.Lock()
+	defer r.store.Unlock()
+
+	url.IsDeleted = true
+
+	return nil
+}
+
 func (r *URLRepository) Create(url *model.URL) error {
 	r.store.Lock()
 	defer r.store.Unlock()

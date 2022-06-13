@@ -44,7 +44,7 @@ func main() {
 
 	defer s.Close()
 
-	handler := handlers.New(cfg.URLLen, cfg.BaseURL, s)
+	handler := handlers.New(cfg.URLLen, cfg.BaseURL, s, []byte(cfg.SessionKey))
 	srv := server.New(cfg.Network, cfg.BindAddress, handler)
 
 	g, _ := errgroup.WithContext(ctx)
