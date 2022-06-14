@@ -110,7 +110,10 @@ func (r *URLRepository) FindByUserID(id int) ([]*model.URL, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+		_ = rows.Err()
+	}()
 
 	for rows.Next() {
 		var url model.URL

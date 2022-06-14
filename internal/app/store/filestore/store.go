@@ -17,7 +17,7 @@ var (
 type Store struct {
 	sync.Mutex
 	fileDescriptor *os.File
-	nextUrlID      int
+	nextURLID      int
 	nextUserID     int
 	fileData       File
 }
@@ -34,7 +34,7 @@ func New(filepath string) (*Store, error) {
 
 	s := &Store{
 		fileDescriptor: file,
-		nextUrlID:      0,
+		nextURLID:      0,
 		nextUserID:     0,
 	}
 
@@ -54,7 +54,7 @@ func (s *Store) startup() {
 	var f File
 
 	for _, v := range data {
-		if s.nextUserID > 0 && s.nextUrlID > 0 {
+		if s.nextUserID > 0 && s.nextURLID > 0 {
 			break
 		}
 		if err := json.Unmarshal([]byte(v), &f); err == nil {
@@ -65,10 +65,10 @@ func (s *Store) startup() {
 					}
 				}
 			}
-			if s.nextUrlID == 0 {
+			if s.nextURLID == 0 {
 				if f.Type == "url" || f.Type == "" {
 					if err := json.Unmarshal(f.Data, &url); err == nil {
-						s.nextUrlID = url.ID
+						s.nextURLID = url.ID
 					}
 				}
 			}

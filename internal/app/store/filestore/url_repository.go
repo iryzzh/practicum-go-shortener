@@ -43,7 +43,7 @@ func (r *URLRepository) Delete(url *model.URL) error {
 
 	for _, v := range urls {
 		if url.URLOrigin == v.URLOrigin {
-			if v.IsDeleted == true {
+			if v.IsDeleted {
 				return nil
 			}
 
@@ -79,8 +79,8 @@ func (r *URLRepository) Create(url *model.URL) error {
 	}
 
 	r.store.Lock()
-	url.ID = r.store.nextUrlID + 1
-	r.store.nextUrlID++
+	url.ID = r.store.nextURLID + 1
+	r.store.nextURLID++
 	r.store.Unlock()
 
 	data, err := json.Marshal(&url)

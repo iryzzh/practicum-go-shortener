@@ -101,6 +101,9 @@ func (s *Handler) DeleteUrlsHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Handler) deleteUrls(r *http.Request, values []string) {
 	session, _ := s.sessionsStore.Get(r, s.cookieName)
+	if session.Values["uuid"] == nil {
+		return
+	}
 	user, err := s.Store.User().FindByUUID(session.Values["uuid"].(string))
 	if err != nil {
 		log.Println("ERR:", err)
@@ -113,8 +116,8 @@ func (s *Handler) deleteUrls(r *http.Request, values []string) {
 	}
 
 	var ids []int
-	for _, v := range values {
-		for _, url := range urls {
+	for _, url := range urls {
+		for _, v := range values {
 			if url.URLShort == v {
 				if !url.IsDeleted {
 					ids = append(ids, url.ID)
@@ -319,6 +322,9 @@ func (s *Handler) SaveURL(r *http.Request, url *model.URL) error {
 	return nil
 }
 
+// https://pkg.go.dev/context#WithValue
+type ctxKeyLocation struct{}
+
 func (s *Handler) ParseURL(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
@@ -333,14 +339,14 @@ func (s *Handler) ParseURL(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), "location", url.URLOrigin)
+		ctx := context.WithValue(r.Context(), ctxKeyLocation{}, url.URLOrigin)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func RedirectHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if location, ok := ctx.Value("location").(string); ok {
+	if location, ok := ctx.Value(ctxKeyLocation{}).(string); ok {
 		http.Redirect(w, r, location, http.StatusTemporaryRedirect)
 		return
 	}

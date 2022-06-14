@@ -186,6 +186,7 @@ func TestHandler_Post(t *testing.T) {
 
 			if r.StatusCode != http.StatusBadRequest {
 				result, _ := testRequest(t, "GET", b, nil, nil)
+				defer result.Body.Close()
 				assert.Equal(t, tt.body, result.Header.Get("location"))
 			}
 		})
@@ -258,6 +259,7 @@ func TestHandler_API_Shorten_Post(t *testing.T) {
 			}
 
 			result, _ := testRequest(t, "GET", resp.Result, nil, nil)
+			defer result.Body.Close()
 
 			assert.Equal(t, tt.body["url"].(string), result.Header.Get("location"))
 		})
@@ -341,6 +343,7 @@ func TestHandler_API_Shorten_Batch(t *testing.T) {
 				assert.Equal(t, tt.body[i].CorrelationID, v.CorrelationID)
 
 				result, _ := testRequest(t, "GET", v.ShortURL, nil, nil)
+				defer result.Body.Close()
 				assert.Equal(t, result.Header.Get("location"), tt.body[i].OriginalURL)
 			}
 		})
@@ -390,6 +393,7 @@ func TestHandler_API_User_Urls_Delete(t *testing.T) {
 				url := model.TestURLGenerated(t)
 
 				res, body := testRequest(t, "POST", ts.URL, strings.NewReader(url.URLOrigin), jar)
+				res.Body.Close()
 
 				if res.StatusCode != http.StatusCreated {
 					t.Fatalf("request error: %v", err)
@@ -403,11 +407,13 @@ func TestHandler_API_User_Urls_Delete(t *testing.T) {
 				t.Fatal(err)
 			}
 			response, _ := testRequest(t, "DELETE", ts.URL+endpoint, bytes.NewReader(valuesJSON), jar)
+			defer response.Body.Close()
 
 			assert.Equal(t, http.StatusAccepted, response.StatusCode)
 
 			for _, v := range values {
 				response, _ := testRequest(t, "GET", ts.URL+"/"+v, nil, nil)
+				response.Body.Close()
 				assert.Equal(t, tt.wantStatusCode, response.StatusCode)
 			}
 		})
