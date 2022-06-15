@@ -100,6 +100,13 @@ func (s *Handler) DeleteUrlsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Handler) deleteUrls(r *http.Request, values []string) {
+	defer func() {
+		if x := recover(); x != nil {
+			log.Println("runtime panic:", x)
+			s.deleteUrls(r, values)
+		}
+	}()
+
 	session, _ := s.sessionsStore.Get(r, s.cookieName)
 	if session.Values["uuid"] == nil {
 		return
