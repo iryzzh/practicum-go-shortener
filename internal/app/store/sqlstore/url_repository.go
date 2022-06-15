@@ -2,10 +2,10 @@ package sqlstore
 
 import (
 	"database/sql"
-	"errors"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
 	"github.com/lib/pq"
+	"github.com/pkg/errors"
 )
 
 type URLRepository struct {
@@ -108,23 +108,20 @@ func (r *URLRepository) FindByUserID(id int) ([]*model.URL, error) {
 		"SELECT url_id, user_id, original_url, short_url, is_deleted from urls where user_id = $1",
 		id)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "query")
 	}
-	defer func() {
-		_ = rows.Close()
-		_ = rows.Err()
-	}()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var url model.URL
 		if err := rows.Scan(&url.ID, &url.UserID, &url.URLOrigin, &url.URLShort, &url.IsDeleted); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "scan rows")
 		}
 
 		urls = append(urls, &url)
 	}
 
-	return urls, nil
+	return urls, rows.Err()
 }
 
 func (r *URLRepository) UpdateUserID(url *model.URL, userID int) error {
