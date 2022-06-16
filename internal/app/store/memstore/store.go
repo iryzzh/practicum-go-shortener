@@ -7,7 +7,7 @@ import (
 )
 
 type Store struct {
-	sync.Mutex
+	sync.RWMutex
 
 	urls       map[int]*model.URL
 	users      map[int]*model.User

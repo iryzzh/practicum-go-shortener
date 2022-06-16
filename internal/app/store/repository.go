@@ -10,6 +10,7 @@ type URLRepository interface {
 	FindByUUID(uuid string) (*model.URL, error)
 	FindByUserID(id int) ([]*model.URL, error)
 	UpdateUserID(url *model.URL, userID int) error
+	IsDeleted(id int) bool
 }
 
 type UserRepository interface {

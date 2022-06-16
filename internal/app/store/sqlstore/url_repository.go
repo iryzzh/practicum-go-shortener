@@ -12,6 +12,23 @@ type URLRepository struct {
 	store *Store
 }
 
+func (r *URLRepository) IsDeleted(id int) bool {
+	u := &model.URL{}
+
+	err := r.store.db.QueryRow(
+		"select url_id, is_deleted from urls where url_id = $1",
+		id,
+	).Scan(
+		&u.ID,
+		&u.IsDeleted)
+
+	if err != nil {
+		return false
+	}
+
+	return u.IsDeleted
+}
+
 func (r *URLRepository) BatchDelete(ids []int) error {
 	_, err := r.store.db.Exec(`UPDATE urls SET is_deleted = true WHERE url_id = ANY($1::int[]);`, pq.Array(ids))
 

@@ -9,6 +9,19 @@ type URLRepository struct {
 	store *Store
 }
 
+func (r *URLRepository) IsDeleted(id int) bool {
+	r.store.RLock()
+	defer r.store.RUnlock()
+
+	for _, v := range r.store.urls {
+		if id == v.ID {
+			return v.IsDeleted
+		}
+	}
+
+	return false
+}
+
 func (r *URLRepository) BatchDelete(ids []int) error {
 	r.store.Lock()
 	defer r.store.Unlock()
@@ -56,6 +69,9 @@ func (r *URLRepository) Create(url *model.URL) error {
 }
 
 func (r *URLRepository) FindByID(id int) (*model.URL, error) {
+	r.store.RLock()
+	defer r.store.RUnlock()
+
 	for _, v := range r.store.urls {
 		if id == v.ID {
 			return v, nil
@@ -66,6 +82,9 @@ func (r *URLRepository) FindByID(id int) (*model.URL, error) {
 }
 
 func (r *URLRepository) FindByUUID(uuid string) (*model.URL, error) {
+	r.store.RLock()
+	defer r.store.RUnlock()
+
 	for _, v := range r.store.urls {
 		if v.URLShort == uuid {
 			return v, nil
@@ -76,6 +95,9 @@ func (r *URLRepository) FindByUUID(uuid string) (*model.URL, error) {
 }
 
 func (r *URLRepository) FindByUserID(id int) ([]*model.URL, error) {
+	r.store.RLock()
+	defer r.store.RUnlock()
+
 	var result []*model.URL
 
 	for _, v := range r.store.urls {
@@ -88,7 +110,9 @@ func (r *URLRepository) FindByUserID(id int) ([]*model.URL, error) {
 }
 
 func (r *URLRepository) UpdateUserID(url *model.URL, userID int) error {
+	r.store.Lock()
 	url.UserID = userID
+	r.store.Unlock()
 
 	return nil
 }

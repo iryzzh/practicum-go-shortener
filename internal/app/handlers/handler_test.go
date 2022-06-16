@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"github.com/iryzzh/practicum-go-shortener/cmd/shortener/config"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/handlers"
@@ -19,7 +20,9 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func newTestServer(st store.Store) (*httptest.Server, error) {
@@ -389,18 +392,37 @@ func TestHandler_API_User_Urls_Delete(t *testing.T) {
 			}
 
 			var values []string
-			for i := 0; i < 5; i++ {
-				url := model.TestURLGenerated(t)
+			var wg sync.WaitGroup
 
-				res, body := testRequest(t, "POST", ts.URL, strings.NewReader(url.URLOrigin), jar)
-				res.Body.Close()
+			valuesCount := 10
 
-				if res.StatusCode != http.StatusCreated {
-					t.Fatalf("request error: %v", err)
-				}
+			once := sync.Once{}
+			done := make(chan struct{})
+			mut := sync.Mutex{}
 
-				values = append(values, filepath.Base(body))
+			for i := 0; i < valuesCount; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+
+					url := model.TestURLGenerated(t)
+
+					res, body := testRequest(t, "POST", ts.URL, strings.NewReader(url.URLOrigin), jar)
+					res.Body.Close()
+
+					assert.Equal(t, http.StatusCreated, res.StatusCode)
+
+					mut.Lock()
+					values = append(values, filepath.Base(body))
+					mut.Unlock()
+
+					once.Do(func() {
+						close(done)
+					})
+				}()
+				<-done
 			}
+			wg.Wait()
 
 			valuesJSON, err := json.Marshal(values)
 			if err != nil {
@@ -411,11 +433,32 @@ func TestHandler_API_User_Urls_Delete(t *testing.T) {
 
 			assert.Equal(t, http.StatusAccepted, response.StatusCode)
 
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			_ = ctx
+			defer cancel()
+
 			for _, v := range values {
-				response, _ := testRequest(t, "GET", ts.URL+"/"+v, nil, nil)
-				response.Body.Close()
-				assert.Equal(t, tt.wantStatusCode, response.StatusCode)
+				wg.Add(1)
+
+				go func(v string) {
+					defer wg.Done()
+
+					for {
+						response, _ := testRequest(t, "GET", ts.URL+"/"+v, nil, nil)
+						response.Body.Close()
+
+						select {
+						case <-ctx.Done():
+							return
+						default:
+							if tt.wantStatusCode == response.StatusCode {
+								return
+							}
+						}
+					}
+				}(v)
 			}
+			wg.Wait()
 		})
 	}
 }

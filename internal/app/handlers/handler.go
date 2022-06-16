@@ -340,7 +340,7 @@ func (s *Handler) ParseURL(next http.Handler) http.Handler {
 			return
 		}
 
-		if url.IsDeleted {
+		if s.Store.URL().IsDeleted(url.ID) {
 			w.WriteHeader(http.StatusGone)
 			return
 		}

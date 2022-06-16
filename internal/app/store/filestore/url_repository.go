@@ -9,6 +9,21 @@ type URLRepository struct {
 	store *Store
 }
 
+func (r *URLRepository) IsDeleted(id int) bool {
+	urls, err := r.store.ReadUrls()
+	if err != nil {
+		return false
+	}
+
+	for _, v := range urls {
+		if id == v.ID {
+			return v.IsDeleted
+		}
+	}
+
+	return false
+}
+
 func (r *URLRepository) BatchDelete(ids []int) error {
 	urls, err := r.store.ReadUrls()
 	if err != nil {

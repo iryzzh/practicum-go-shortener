@@ -1,9 +1,8 @@
 package utils
 
 import (
-	cr "crypto/rand"
-	"io"
 	"math/rand"
+	"sync"
 	"time"
 	"unsafe"
 )
@@ -16,7 +15,32 @@ const (
 	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
 )
 
-var src = rand.NewSource(time.Now().UnixNano())
+//var src = rand.NewSource(time.Now().UnixNano())
+
+type lockedSource struct {
+	source rand.Source
+	lock   sync.Mutex
+}
+
+func newLockSource(seed int64) *lockedSource {
+	return &lockedSource{
+		source: rand.NewSource(seed),
+	}
+}
+
+func (ls *lockedSource) Int63() int64 {
+	ls.lock.Lock()
+	defer ls.lock.Unlock()
+	return ls.source.Int63()
+}
+
+func (ls *lockedSource) Seed(seed int64) {
+	ls.lock.Lock()
+	defer ls.lock.Unlock()
+	ls.source.Seed(seed)
+}
+
+var src = newLockSource(time.Now().UnixNano())
 
 // randStringBytesMaskImprSrcUnsafe generates a random string of a given length.
 // https://stackoverflow.com/questions/22892120/how-to-generate-a-random-string-of-a-fixed-length-in-go/31832326#31832326
@@ -44,12 +68,4 @@ func RandString(n int) string {
 
 func RandStringLowerCase(n int) string {
 	return randStringBytesMaskImprSrcUnsafe(n, letterBytesStringOnly)
-}
-
-func GenerateRandomKey(length int) []byte {
-	k := make([]byte, length)
-	if _, err := io.ReadFull(cr.Reader, k); err != nil {
-		return nil
-	}
-	return k
 }
