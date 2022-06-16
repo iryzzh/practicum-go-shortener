@@ -11,6 +11,7 @@ type URL struct {
 	URLOrigin string `json:"url"`
 	URLShort  string `json:"url_short,omitempty"`
 	UserID    int    `json:"user_id,omitempty"`
+	IsDeleted bool   `json:"is_deleted"`
 }
 
 func (u *URL) Validate() error {

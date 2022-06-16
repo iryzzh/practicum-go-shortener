@@ -9,6 +9,73 @@ type URLRepository struct {
 	store *Store
 }
 
+func (r *URLRepository) IsDeleted(id int) bool {
+	urls, err := r.store.ReadUrls()
+	if err != nil {
+		return false
+	}
+
+	for _, v := range urls {
+		if id == v.ID {
+			return v.IsDeleted
+		}
+	}
+
+	return false
+}
+
+func (r *URLRepository) BatchDelete(ids []int) error {
+	urls, err := r.store.ReadUrls()
+	if err != nil {
+		return err
+	}
+
+	for _, v := range urls {
+		for _, k := range ids {
+			if k == v.ID {
+				v.IsDeleted = true
+
+				b, err := json.Marshal(v)
+				if err != nil {
+					return err
+				}
+
+				if err := r.store.Write(b, "url"); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (r *URLRepository) Delete(url *model.URL) error {
+	urls, err := r.store.ReadUrls()
+	if err != nil {
+		return err
+	}
+
+	for _, v := range urls {
+		if url.URLOrigin == v.URLOrigin {
+			if v.IsDeleted {
+				return nil
+			}
+
+			v.IsDeleted = true
+
+			b, err := json.Marshal(v)
+			if err != nil {
+				return err
+			}
+
+			return r.store.Write(b, "url")
+		}
+	}
+
+	return store.ErrRecordNotFound
+}
+
 func (r *URLRepository) Create(url *model.URL) error {
 	if err := url.Validate(); err != nil {
 		return err
@@ -27,8 +94,8 @@ func (r *URLRepository) Create(url *model.URL) error {
 	}
 
 	r.store.Lock()
-	url.ID = r.store.nextUrlID + 1
-	r.store.nextUrlID++
+	url.ID = r.store.nextURLID + 1
+	r.store.nextURLID++
 	r.store.Unlock()
 
 	data, err := json.Marshal(&url)

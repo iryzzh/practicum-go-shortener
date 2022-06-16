@@ -10,6 +10,7 @@ require (
 	github.com/gorilla/sessions v1.2.1
 	github.com/json-iterator/go v1.1.12
 	github.com/lib/pq v1.10.6
+	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.7.1
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )

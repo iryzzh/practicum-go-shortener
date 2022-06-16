@@ -22,6 +22,9 @@ func (r *UserRepository) Create(user *model.User) error {
 }
 
 func (r *UserRepository) FindByID(id int) (*model.User, error) {
+	r.store.Lock()
+	defer r.store.Unlock()
+
 	for _, v := range r.store.users {
 		if id == v.ID {
 			return v, nil
@@ -32,6 +35,9 @@ func (r *UserRepository) FindByID(id int) (*model.User, error) {
 }
 
 func (r *UserRepository) FindByUUID(uuid string) (*model.User, error) {
+	r.store.Lock()
+	defer r.store.Unlock()
+
 	for _, v := range r.store.users {
 		if uuid == v.UUID {
 			return v, nil

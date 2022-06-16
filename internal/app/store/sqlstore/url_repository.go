@@ -2,13 +2,43 @@ package sqlstore
 
 import (
 	"database/sql"
-	"errors"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
+	"github.com/lib/pq"
+	"github.com/pkg/errors"
 )
 
 type URLRepository struct {
 	store *Store
+}
+
+func (r *URLRepository) IsDeleted(id int) bool {
+	u := &model.URL{}
+
+	err := r.store.db.QueryRow(
+		"select url_id, is_deleted from urls where url_id = $1",
+		id,
+	).Scan(
+		&u.ID,
+		&u.IsDeleted)
+
+	if err != nil {
+		return false
+	}
+
+	return u.IsDeleted
+}
+
+func (r *URLRepository) BatchDelete(ids []int) error {
+	_, err := r.store.db.Exec(`UPDATE urls SET is_deleted = true WHERE url_id = ANY($1::int[]);`, pq.Array(ids))
+
+	return err
+}
+
+func (r *URLRepository) Delete(url *model.URL) error {
+	_, err := r.store.db.Exec(`UPDATE urls SET is_deleted = true WHERE url_id = $1`, url.ID)
+
+	return err
 }
 
 func (r *URLRepository) Create(url *model.URL) error {
@@ -69,12 +99,14 @@ func (r *URLRepository) FindByUUID(uuid string) (*model.URL, error) {
 	u := &model.URL{}
 
 	err := r.store.db.QueryRow(
-		"SELECT url_id, short_url, original_url FROM urls WHERE short_url = $1",
+		"SELECT url_id, user_id, original_url, short_url, is_deleted FROM urls WHERE short_url = $1",
 		uuid,
 	).Scan(
 		&u.ID,
-		&u.URLShort,
+		&u.UserID,
 		&u.URLOrigin,
+		&u.URLShort,
+		&u.IsDeleted,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, store.ErrRecordNotFound
@@ -90,23 +122,23 @@ func (r *URLRepository) FindByUserID(id int) ([]*model.URL, error) {
 	var urls []*model.URL
 
 	rows, err := r.store.db.Query(
-		"SELECT * from urls where user_id = $1",
+		"SELECT url_id, user_id, original_url, short_url, is_deleted from urls where user_id = $1",
 		id)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "query")
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var url model.URL
-		if err := rows.Scan(&url.ID, &url.UserID, &url.URLOrigin, &url.URLShort); err != nil {
-			return nil, err
+		if err := rows.Scan(&url.ID, &url.UserID, &url.URLOrigin, &url.URLShort, &url.IsDeleted); err != nil {
+			return nil, errors.Wrap(err, "scan rows")
 		}
 
 		urls = append(urls, &url)
 	}
 
-	return urls, nil
+	return urls, rows.Err()
 }
 
 func (r *URLRepository) UpdateUserID(url *model.URL, userID int) error {

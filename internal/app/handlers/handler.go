@@ -3,6 +3,7 @@ package handlers
 import (
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -11,7 +12,6 @@ import (
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
 	"github.com/iryzzh/practicum-go-shortener/internal/pkg/utils"
-	"github.com/json-iterator/go"
 	"io"
 	"io/ioutil"
 	"log"
@@ -24,8 +24,6 @@ var (
 	ErrIncorrectID  = errors.New("incorrect ID")
 	ErrIncorrectURL = errors.New("url is incorrect")
 	minURLLength    = 12
-
-	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 type Handler struct {
@@ -38,13 +36,13 @@ type Handler struct {
 	cookieName    string
 }
 
-func New(linkLen int, baseURL string, store store.Store) *Handler {
+func New(linkLen int, baseURL string, store store.Store, sessionKey []byte) *Handler {
 	s := &Handler{
 		Mux:           chi.NewMux(),
 		LinkLen:       linkLen,
 		BaseURL:       baseURL,
 		Store:         store,
-		sessionsStore: sessions.NewCookieStore(utils.GenerateRandomKey(32)),
+		sessionsStore: sessions.NewCookieStore(sessionKey),
 		cookieName:    "_session_",
 	}
 
@@ -71,11 +69,73 @@ func New(linkLen int, baseURL string, store store.Store) *Handler {
 		r.Post("/shorten", s.shorten)
 		r.Post("/shorten/batch", s.batch)
 		r.Get("/user/urls", s.userUrls)
+		r.Delete("/user/urls", s.DeleteUrlsHandler)
 	})
 
 	s.Get("/ping", s.Status)
 
 	return s
+}
+
+func (s *Handler) DeleteUrlsHandler(w http.ResponseWriter, r *http.Request) {
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	defer r.Body.Close()
+
+	var values []string
+	err = json.Unmarshal(b, &values)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+
+	go s.deleteUrls(r, values)
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (s *Handler) deleteUrls(r *http.Request, values []string) {
+	defer func() {
+		if x := recover(); x != nil {
+			log.Println("runtime panic:", x)
+		}
+	}()
+
+	session, _ := s.sessionsStore.Get(r, s.cookieName)
+	if session.Values["uuid"] == nil {
+		return
+	}
+	user, err := s.Store.User().FindByUUID(session.Values["uuid"].(string))
+	if err != nil {
+		log.Println("ERR:", err)
+		return
+	}
+	urls, err := s.Store.URL().FindByUserID(user.ID)
+	if err != nil {
+		log.Println("user URL err:", err)
+		return
+	}
+
+	var ids []int
+	for _, url := range urls {
+		for _, v := range values {
+			if url.URLShort == v {
+				if !url.IsDeleted {
+					ids = append(ids, url.ID)
+				}
+			}
+		}
+	}
+
+	if len(ids) > 0 {
+		err := s.Store.URL().BatchDelete(ids)
+		if err != nil {
+			log.Println("delete error:", err)
+		}
+	}
 }
 
 func (s *Handler) batch(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +162,7 @@ func (s *Handler) batch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for i, v := range result {
-		shortURL := utils.RandStringBytesMaskImprSrcUnsafe(s.LinkLen)
+		shortURL := utils.RandString(s.LinkLen)
 
 		if err := s.Store.URL().Create(&model.URL{
 			URLOrigin: *v.OriginalURL,
@@ -220,7 +280,7 @@ func (s *Handler) shorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url.URLShort = utils.RandStringBytesMaskImprSrcUnsafe(s.LinkLen)
+	url.URLShort = utils.RandString(s.LinkLen)
 
 	err = s.Store.URL().Create(url)
 	if errors.Is(err, store.ErrURLExist) {
@@ -266,6 +326,9 @@ func (s *Handler) SaveURL(r *http.Request, url *model.URL) error {
 	return nil
 }
 
+// https://pkg.go.dev/context#WithValue
+type ctxKeyLocation struct{}
+
 func (s *Handler) ParseURL(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
@@ -274,14 +337,20 @@ func (s *Handler) ParseURL(next http.Handler) http.Handler {
 			s.fail(w, ErrIncorrectID)
 			return
 		}
-		ctx := context.WithValue(r.Context(), "location", url.URLOrigin)
+
+		if s.Store.URL().IsDeleted(url.ID) {
+			w.WriteHeader(http.StatusGone)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), ctxKeyLocation{}, url.URLOrigin)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func RedirectHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if location, ok := ctx.Value("location").(string); ok {
+	if location, ok := ctx.Value(ctxKeyLocation{}).(string); ok {
 		http.Redirect(w, r, location, http.StatusTemporaryRedirect)
 		return
 	}
@@ -305,7 +374,7 @@ func (s *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
 
 	url := &model.URL{
 		URLOrigin: string(b),
-		URLShort:  utils.RandStringBytesMaskImprSrcUnsafe(s.LinkLen),
+		URLShort:  utils.RandString(s.LinkLen),
 	}
 
 	err = s.Store.URL().Create(url)

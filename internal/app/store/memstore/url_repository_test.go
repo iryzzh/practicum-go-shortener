@@ -46,3 +46,16 @@ func TestURLRepository(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, urls)
 }
+
+func TestURLRepositoryDelete(t *testing.T) {
+	st := memstore.New()
+	url := model.TestURLGenerated(t)
+
+	assert.NoError(t, st.URL().Create(url))
+	assert.NoError(t, st.URL().Delete(url))
+
+	u, err := st.URL().FindByUUID(url.URLShort)
+	assert.NoError(t, err)
+	assert.Equal(t, url.URLOrigin, u.URLOrigin)
+	assert.Equal(t, true, u.IsDeleted)
+}
