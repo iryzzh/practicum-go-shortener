@@ -103,7 +103,6 @@ func (s *Handler) deleteUrls(r *http.Request, values []string) {
 	defer func() {
 		if x := recover(); x != nil {
 			log.Println("runtime panic:", x)
-			s.deleteUrls(r, values)
 		}
 	}()
 
