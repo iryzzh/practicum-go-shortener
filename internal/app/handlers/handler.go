@@ -3,6 +3,7 @@ package handlers
 import (
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -11,7 +12,6 @@ import (
 	"github.com/iryzzh/practicum-go-shortener/internal/app/model"
 	"github.com/iryzzh/practicum-go-shortener/internal/app/store"
 	"github.com/iryzzh/practicum-go-shortener/internal/pkg/utils"
-	"github.com/json-iterator/go"
 	"io"
 	"io/ioutil"
 	"log"
@@ -24,8 +24,6 @@ var (
 	ErrIncorrectID  = errors.New("incorrect ID")
 	ErrIncorrectURL = errors.New("url is incorrect")
 	minURLLength    = 12
-
-	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 type Handler struct {
